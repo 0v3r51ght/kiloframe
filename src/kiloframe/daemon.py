@@ -14,6 +14,7 @@ from .resources import ResourceManager
 from .rpc import RPCServer
 from .runtime import OllamaRuntime
 from .security import PermissionManager
+from .skills import seed_preconfigured_skills
 from .telegram import TelegramBridge
 from .tools import ToolRegistry
 
@@ -30,6 +31,7 @@ async def serve() -> None:
     memory = MemoryStore(settings.database_path, settings.memory_message_limit, settings.memory_fact_limit, settings.memory_skill_limit)
     memory.save_skill("verified-mathematics", "when solving equations, calculations or quantitative questions", "Define variables and units; solve symbolically; verify with an independent safe computation; check dimensions, signs, edge cases and rounding; state assumptions and precision.")
     memory.save_skill("engineering-design-review", "when designing or analysing a mechanical, electrical, civil, chemical, aerospace or other engineered system", "Extract requirements and constraints; identify standards and safety factors; state assumptions; calculate or simulate; verify critical values; document risks, tests, acceptance criteria and rollback using authoritative sources.")
+    seed_preconfigured_skills(memory, settings)
     resources = ResourceManager(settings)
     permissions = PermissionManager(settings.policy_path)
     mcp = MCPRegistry(settings.mcp_path)
@@ -46,6 +48,7 @@ async def serve() -> None:
         loop.add_signal_handler(name, stop_event.set)
 
     telegram_task: asyncio.Task[None] | None = None
+    mcp_task: asyncio.Task[None] | None = None
 
     try:
         log.info("verifying Ollama connectivity")
@@ -55,14 +58,17 @@ async def serve() -> None:
             # KiloFrame remains usable for cloud providers even when no Ollama server is
             # configured or reachable; only the local/private route is affected.
             log.warning("Ollama not available at startup (%s); local/private route is down", exc)
-        await mcp.start()
+        # The core TUI must be available even if an optional/integration server is slow,
+        # absent, or downloading its own package. Start the RPC socket first; MCP tools
+        # join the registry in the background and report their real availability later.
         await rpc.start()
+        mcp_task = asyncio.create_task(mcp.start(), name="mcp-startup")
         telegram_task = asyncio.create_task(telegram.run(), name="telegram-bridge")
         log.info("ready on %s", settings.socket_path)
         await stop_event.wait()
     finally:
         telegram.stop()
-        tasks = [task for task in (telegram_task,) if task]
+        tasks = [task for task in (telegram_task, mcp_task) if task]
         for task in tasks:
             task.cancel()
         await rpc.close()

@@ -43,16 +43,16 @@ has_systemd() {
 }
 
 if command -v pacman >/dev/null; then
-    pacman -Syu --needed --noconfirm python python-prompt_toolkit python-pygments curl sqlite ripgrep
+    pacman -Syu --needed --noconfirm python python-prompt_toolkit python-pygments curl sqlite ripgrep git nodejs npm
 elif command -v apt-get >/dev/null; then
     apt-get update
-    DEBIAN_FRONTEND=noninteractive apt-get install -y python3 python3-pip curl sqlite3 ripgrep
+    DEBIAN_FRONTEND=noninteractive apt-get install -y python3 python3-pip curl sqlite3 ripgrep git nodejs npm
 elif command -v dnf >/dev/null; then
-    dnf install -y python3 python3-pip curl sqlite ripgrep
+    dnf install -y python3 python3-pip curl sqlite ripgrep git nodejs npm
 elif command -v zypper >/dev/null; then
-    zypper --non-interactive install python3 python3-pip curl sqlite3 ripgrep
+    zypper --non-interactive install python3 python3-pip curl sqlite3 ripgrep git nodejs npm
 elif command -v apk >/dev/null; then
-    apk add python3 py3-pip curl sqlite ripgrep
+    apk add python3 py3-pip curl sqlite ripgrep git nodejs npm
 else
     echo "No supported package manager found; checking preinstalled dependencies." >&2
 fi
@@ -115,6 +115,54 @@ if [[ ! -f /etc/kiloframe/ollama.json ]]; then
     chmod 0600 /etc/kiloframe/ollama.json
     chown "$KILO_USER":"$KILO_GROUP" /etc/kiloframe/ollama.json
 fi
+if [[ ! -f /etc/kiloframe/mcp.json ]]; then
+    install -m 0600 -o "$KILO_USER" -g "$KILO_GROUP" "$ROOT/config/mcp.preconfigured.json" /etc/kiloframe/mcp.json
+fi
+
+# Preconfigure the requested first-party workflow integrations. Their source/command
+# is installed here rather than being left as a documentation-only suggestion. A
+# credentials-bound server remains disabled in mcp.json until its owner supplies a key.
+install -d -m 0755 /opt/kiloframe/integrations
+if [[ ! -d /opt/kiloframe/integrations/superpowers/.git ]]; then
+    if ! git clone --depth 1 https://github.com/obra/superpowers.git /opt/kiloframe/integrations/superpowers; then
+        echo "Superpowers is required but could not be downloaded; check GitHub connectivity and rerun the installer." >&2
+        exit 1
+    fi
+fi
+if command -v npm >/dev/null 2>&1; then
+    if ! npm install -g @upstash/context7-mcp@latest @playwright/cli@latest exa-mcp-server; then
+        echo "Context7, Playwright CLI, and Exa are required but could not be installed." >&2
+        exit 1
+    elif command -v playwright-cli >/dev/null 2>&1; then
+        playwright-cli install --skills || { echo "Playwright skills installation failed." >&2; exit 1; }
+    fi
+else
+    echo "npm is required for Context7, Playwright CLI, and Exa." >&2
+    exit 1
+fi
+UV_BIN="$(command -v uv || true)"
+if [[ -z "$UV_BIN" ]]; then
+    "$PYTHON_BIN" -m pip install --break-system-packages uv 2>/dev/null \
+        || "$PYTHON_BIN" -m pip install uv
+    UV_BIN="$(command -v uv || true)"
+fi
+if [[ -z "$UV_BIN" ]]; then
+    echo "uv is required to install Serena but could not be installed." >&2
+    exit 1
+fi
+install -d -m 0755 /opt/kiloframe/integrations/uv-tools /opt/kiloframe/integrations/bin
+if ! UV_TOOL_DIR=/opt/kiloframe/integrations/uv-tools \
+    UV_TOOL_BIN_DIR=/opt/kiloframe/integrations/bin \
+    "$UV_BIN" tool install --python "$PYTHON_BIN" serena-agent; then
+    echo "Serena is required but could not be installed." >&2
+    exit 1
+fi
+SERENA_BIN="/opt/kiloframe/integrations/bin/serena"
+if [[ ! -x "$SERENA_BIN" ]]; then
+    echo "Serena installed but its launcher was not found: $SERENA_BIN" >&2
+    exit 1
+fi
+ln -sf "$SERENA_BIN" /usr/local/bin/serena
 if has_systemd; then
     systemctl daemon-reload
     systemctl enable kiloframe.service

@@ -50,6 +50,19 @@ class InstallationTests(unittest.TestCase):
         self.assertIn("KiloFrame installed", install)
         self.assertIn('install -d -m 0750 -o "$KILO_USER" -g "$KILO_GROUP" /etc/kiloframe', install)
 
+    def test_installer_preconfigures_requested_integrations(self):
+        root = Path(__file__).parents[1]
+        install = (root / "scripts" / "install.sh").read_text()
+        config = (root / "config" / "mcp.preconfigured.json").read_text()
+        self.assertIn("obra/superpowers", install)
+        self.assertIn("serena-agent", install)
+        self.assertIn("tool install", install)
+        self.assertIn("/usr/local/bin/serena", install)
+        self.assertIn("@playwright/cli", install)
+        self.assertIn("mcp.preconfigured.json", install)
+        for name in ("context7", "serena", "github", "exa", "firecrawl"):
+            self.assertIn(f'"{name}"', config)
+
     def test_installer_no_longer_references_the_old_gguf_path(self):
         for name in ("install.sh", "install-online.sh"):
             text = (Path(__file__).parents[1] / "scripts" / name).read_text()

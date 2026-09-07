@@ -1466,6 +1466,11 @@ class KiloApp:
                     self._open_box()
                     self._bline("\u23f3 warming the prompt cache (one-off after a change)")
                     self._had_work = True
+                elif kind == "compaction":
+                    self._open_box()
+                    self._bline(f"◇ conversation compacted · preserved recent context + {event.get('turns', 0)} earlier turns")
+                    self._had_work = True
+                    self._work_items.append(("conversation context compacted", True))
                 elif kind == "thinking":
                     self.phase = "thinking"
                     self.streaming = False

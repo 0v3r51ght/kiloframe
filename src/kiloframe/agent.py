@@ -243,24 +243,42 @@ class Agent:
         self.tools = tools
         self.providers = providers or ProviderRegistry(settings.providers_path)
 
-    def _history_within_budget(self, session_id: str) -> list[dict[str, str]]:
-        """Take the most recent turns that fit the history token allowance.
+    def _history_within_budget(self, session_id: str) -> tuple[list[dict[str, str]], str | None]:
+        """Keep recent turns and deterministically compact older conversation context.
 
         A fixed message count is not a bound on context: one turn carrying a tool result
         can be larger than twenty short ones. Messages are taken newest-first so the
-        current task always survives, then restored to chronological order.
+        current task always survives, then restored to chronological order. Older turns
+        are not silently discarded: role-labelled excerpts preserve decisions, requests,
+        and references in a bounded system context.
         """
         budget_chars = self.settings.max_history_tokens * CHARS_PER_TOKEN
+        # Reserve room for the compacted record before filling the recent-turn window.
+        # A useful summary is more valuable than one extra old turn with no explanation.
+        summary_budget = max(320, budget_chars // 3)
+        recent_budget = max(80, budget_chars - summary_budget)
         kept: list[dict[str, str]] = []
         used = 0
-        for message in reversed(self.memory.history(session_id, 64)):
+        history = self.memory.history(session_id, 64)
+        for message in reversed(history):
             cost = len(message.get("content") or "")
-            if kept and used + cost > budget_chars:
+            if kept and used + cost > recent_budget:
                 break
             kept.append(message)
             used += cost
         kept.reverse()
-        return kept
+        compacted_count = max(0, len(history) - len(kept))
+        if not compacted_count:
+            return kept, None
+        older = history[:compacted_count]
+        excerpts: list[str] = []
+        for message in older[-12:]:
+            role = str(message.get("role") or "turn")
+            content = " ".join(str(message.get("content") or "").split())
+            if content:
+                excerpts.append(f"- {role}: {content[:180]}")
+        summary = "Conversation compacted: " + str(compacted_count) + " earlier turn(s).\n" + "\n".join(excerpts)
+        return kept, summary[:summary_budget]
 
     async def run(
         self,
@@ -411,7 +429,11 @@ class Agent:
                     ),
                 }
             )
-        messages.extend(self._history_within_budget(session_id))
+        history, compacted = self._history_within_budget(session_id)
+        if compacted:
+            messages.append({"role": "system", "content": compacted})
+            yield {"type": "compaction", "turns": max(0, len(self.memory.history(session_id, 64)) - len(history))}
+        messages.extend(history)
         context = ToolContext(
             session_id=session_id,
             cwd=(cwd or self.settings.home).resolve(),

@@ -68,6 +68,10 @@ class Settings:
         return self.config_dir / "mcp.json"
 
     @property
+    def integrations_dir(self) -> Path:
+        return _env_path("KILOFRAME_INTEGRATIONS_DIR", "/opt/kiloframe/integrations")
+
+    @property
     def providers_path(self) -> Path:
         return self.config_dir / "providers.json"
 
