@@ -2,8 +2,7 @@
 
 **Created:** September 7, 2024  
 **Status:** Conversion Complete - Ready for Deployment  
-**GitHub Repository:** https://github.com/0v3r51ght/kiloframe  
-**Transfer Target:** https://github.com/citadelconsortium/kiloframe (pending manual transfer)
+**GitHub Repository:** https://github.com/0v3r51ght/kiloframe
 
 ---
 
