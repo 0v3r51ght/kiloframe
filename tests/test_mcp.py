@@ -5,12 +5,15 @@ the framing, the handshake and the shutdown are exercised as they will be in pro
 """
 
 import json
+import os
+import pwd
 import sys
 import tempfile
 import textwrap
 import unittest
 from pathlib import Path
 from unittest import IsolatedAsyncioTestCase
+from unittest.mock import patch
 
 from kiloframe.errors import ToolError
 from kiloframe.mcp import MCPRegistry, MCPServer, MCPServerConfig
@@ -132,6 +135,25 @@ class ProtocolTests(IsolatedAsyncioTestCase):
         await self.server.stop()
         await self.server.stop()
         self.assertFalse(self.server.running)
+
+    async def test_child_environment_has_service_home_without_inheriting_secrets(self):
+        server = MCPServer(MCPServerConfig("environment", ["fake-server"]))
+        captured = {}
+
+        async def create(*args, **kwargs):
+            captured.update(kwargs["env"])
+            captured["cwd"] = kwargs["cwd"]
+            raise FileNotFoundError
+
+        with patch("shutil.which", return_value="/bin/fake-server"), \
+             patch("asyncio.create_subprocess_exec", side_effect=create), \
+             patch.dict(os.environ, {"KILOFRAME_TEST_SECRET": "not-forwarded"}):
+            with self.assertRaises(FileNotFoundError):
+                await server.start()
+        self.assertEqual(captured["HOME"], pwd.getpwuid(os.geteuid()).pw_dir)
+        self.assertEqual(captured["cwd"], pwd.getpwuid(os.geteuid()).pw_dir)
+        self.assertIn("XDG_CACHE_HOME", captured)
+        self.assertNotIn("KILOFRAME_TEST_SECRET", captured)
 
 
 class RegistryTests(IsolatedAsyncioTestCase):

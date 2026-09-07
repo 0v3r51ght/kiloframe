@@ -21,6 +21,8 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
+import pwd
 import shutil
 from dataclasses import dataclass, field
 from typing import Any
@@ -90,15 +92,24 @@ class MCPServer:
         binary = shutil.which(self.config.command[0])
         if not binary:
             raise ToolError(f"MCP server {self.config.name}: command not found: {self.config.command[0]}")
-        # A server inherits only what it is given plus PATH, so a misbehaving one cannot
-        # read secrets that happen to be in the daemon's environment.
-        env = {"PATH": "/usr/local/bin:/usr/bin:/bin", **self.config.env}
+        # A server inherits only a minimal environment, so it cannot read unrelated
+        # daemon secrets. HOME/XDG_CACHE_HOME are deliberate: package-based stdio
+        # servers such as Context7 need a writable cache and otherwise can exit before
+        # answering initialize under the KiloFrame service account.
+        home = pwd.getpwuid(os.geteuid()).pw_dir
+        env = {
+            "PATH": "/usr/local/bin:/usr/bin:/bin",
+            "HOME": home,
+            "XDG_CACHE_HOME": f"{home}/.cache",
+            **self.config.env,
+        }
         self.process = await asyncio.create_subprocess_exec(
             binary, *self.config.command[1:],
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             env=env,
+            cwd=home,
             start_new_session=True,
         )
         self._stderr_task = asyncio.create_task(self._drain_stderr())

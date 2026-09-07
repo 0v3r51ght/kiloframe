@@ -7,7 +7,7 @@
     },
     "serena": {
       "command": "serena",
-      "args": ["start-mcp-server", "--project-from-cwd", "--context=kiloframe"],
+      "args": ["start-mcp-server"],
       "enabled": true
     },
     "github": {
@@ -20,7 +20,7 @@
       "command": "npx",
       "args": ["-y", "exa-mcp-server"],
       "env": {"EXA_API_KEY": ""},
-      "enabled": true
+      "enabled": false
     },
     "firecrawl": {
       "command": "npx",
