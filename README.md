@@ -1,60 +1,70 @@
-<p align="center"><img src="assets/kilo-mascot.svg" width="132" alt="Kilo, the Kilobyte mascot"></p>
+<p align="center"><img src="assets/kiloframe-mascot.svg" width="132" alt="Kilo, the KiloFrame mascot"></p>
 
 ```
- ██╗  ██╗██╗██╗      ██████╗ ██████╗ ██╗   ██╗████████╗███████╗
- ██║ ██╔╝██║██║     ██╔═══██╗██╔══██╗╚██╗ ██╔╝╚══██╔══╝██╔════╝
- █████╔╝ ██║██║     ██║   ██║██████╔╝ ╚████╔╝    ██║   █████╗
- ██╔═██╗ ██║██║     ██║   ██║██╔══██╗  ╚██╔╝     ██║   ██╔══╝
- ██║  ██╗██║███████╗╚██████╔╝██████╔╝   ██║      ██║   ███████╗
- ╚═╝  ╚═╝╚═╝╚══════╝ ╚═════╝ ╚═════╝    ╚═╝      ╚═╝   ╚══════╝
-        F R A M E W O R K  ·  bring your own model
+ ██╗  ██╗██╗██╗      ██████╗ ███████╗██████╗  █████╗ ███╗   ███╗███████╗
+ ██║ ██╔╝██║██║     ██╔═══██╗██╔════╝██╔══██╗██╔══██╗████╗ ████║██╔════╝
+ █████╔╝ ██║██║     ██║   ██║█████╗  ██████╔╝███████║██╔████╔██║█████╗
+ █╔═██╗ ██║██║     ██║   ██║██╔══╝  ██╔══██╗██╔══██║██║╚██╔╝██║██╔══╝
+ ██║  ██╗██║███████╗╚██████╔╝██║     ██║  ██║██║  ██║██║ ╚═╝ ██║███████╗
+ ╚═╝  ╚═╝╚═╝╚══════╝ ╚═════╝ ╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝     ╚═╝╚══════╝
+               Developed by Citadel Research
 ```
 
-<p align="center"><b>A cloud-first, brain-free AI agent harness — point it at any model and it does the work.</b></p>
+<p align="center"><b>A local-first terminal AI agent — Ollama or a cloud provider, never anything in between.</b></p>
 
-<p align="center"><i>Orchestrator + specialist agents · real tools (shell, files, web, memory) · an offline reference bank · cross-session memory · an approval gate · a boxed, colored TUI — and <b>no bundled brain</b>. Bring your own GGUF, or drive it entirely from a cloud provider.</i></p>
+<p align="center"><i>Orchestrator + specialist agents · real tools (shell, files, web, memory) · cross-session memory · a boxed, colored TUI · OpenCode-inspired slash commands · Kilo and Sir conversation boxes · and a left sidebar that tells you what Kilo is actually doing.</i></p>
 
 ---
 
-## Why this framework beats the rest
-- **It acts, it doesn’t just talk** — cloud and local models get the *same* real tools and are told, emphatically, that their tools execute on the machine. They work **until the task is done**, not until a step counter runs out.
-- **Any model, one harness** — a local GGUF *or* 25 OpenAI-compatible cloud providers, swapped live.
-- **Grounded** — an orchestrator commissions specialist agents (research, coding, security, systems, private) over an offline how-to bank, and the framework auto-recalls prior conversation, facts, and saved skills every turn.
-- **Efficient** — bounded history, compacted tool results, and reasoning-token stripping keep cloud usage lean.
-- **Production-ready** — one-command installer, versioned deploys with auto-rollback, 100+ tests, systemd.
+## Why KiloFrame
 
-## Install (all in one)
+- **It acts, it doesn't just talk.** Kilo is wired into the same real tools a human operator has (shell, files, web, memory, MCP). The model doesn't narrate; it runs the tool and reports what happened.
+- **Local by default, with a hard public default.** KiloFrame's local/private route is a real Ollama server — local or remote. With no Ollama server it still runs through any of 25 OpenAI-compatible cloud providers you choose. Nothing about the box leaves the machine unless you say so.
+- **Grounded.** The orchestrator commissions the right specialist per step (research, coding, security, systems, private), auto-recalls prior conversation, and refuses to record an announced action as a finished one.
+- **OpenCode-style interactive surface, Kilo/Sir voice inside it.** The CLI mirrors OpenCode's command registry and layout, but Kilo still addresses you as **Sir** and shows every live tool call inside his own box. No two competing conversation styles.
+
+## Install
+
 ```bash
-curl -fsSL https://raw.githubusercontent.com/citadelconsortium/kilobyte-framework/main/scripts/install.sh | sudo bash
-kilo                 # then /gguf to load a downloaded model, or /cloud for a hosted one
+# Production (stable)
+sudo apt install -y curl
+curl -fsSL https://raw.githubusercontent.com/citadelconsortium/kiloframe/main/scripts/install-online.sh | sudo bash
+kiloframe
+
+# From a working tree
+git clone https://github.com/citadelconsortium/kiloframe
+cd kiloframe
+sudo ./scripts/install.sh
+kiloframe
 ```
-The installer sets up the app, dependencies, and the service in a single pass. On Arch it
-performs a full supported upgrade so `llama-cpp` and `ggml` remain ABI-compatible. **No model
-is downloaded** — this framework ships without a brain. Package provisioning supports Arch,
-Debian/Ubuntu, Fedora/RHEL, openSUSE, and Alpine; non-systemd hosts receive the exact daemon
-command to register with their native init system.
 
-`kilo status` provides a compact color-coded `READY`, `DEGRADED`, `FAILED`, or `STOPPED`
-state with daemon, brain, cache, runtime, uptime, and memory details.
-The confirmed v1.13.0 one-box TUI layout is retained, with Pygments language-aware syntax
-colours added inside fenced code blocks only.
+The installer provisions Python, `prompt_toolkit`, `pygments`, the `kiloframe` system user, `/opt/kiloframe/app`, `/etc/kiloframe`, and the `kiloframe.service` systemd unit. It seeds an empty Ollama configuration so `/local` and `/localset` are immediately usable; it never downloads or bundles a model.
 
-Telegram publishes `/cancel`, `/local`, `/cloud`, `/switch`, `/models`, `/model`, and `/agent` into
-the real command menu. An allow-listed owner can select cloud inference and use the built-in
-machine tools from chat. Safe inspection runs directly; writes, commands, services, packages,
-and destructive actions pause for one-time Approve/Deny buttons bound to that requesting chat.
-A separate live-work card shows redacted tool activity, final research is rendered as clean
-Telegram HTML with language-labelled code blocks, and text-encoded provider tool calls are intercepted and safely dispatched
-instead of being shown to the user. Excess blank lines are collapsed and context reporting
-follows the active local/cloud route.
-Cancellation is per chat and stops both active and queued work without affecting other chats.
+```text
+# Optional: verify the installer
+curl -fsSL https://raw.githubusercontent.com/citadelconsortium/kiloframe/main/scripts/install-online.sh -o install-online.sh
+sha256sum install-online.sh
+# Compare against the SHA-256 advertised on the release page.
+```
 
-## Bring your own model
-- **A local GGUF** — download any GGUF (HuggingFace, etc.) into `~/` or `~/Downloads`, then run **`/gguf`** in the TUI to browse and load it. ⚠️ **Only load a model your machine can actually run** — the picker shows your free RAM, and a GGUF larger than that will fail to load or run unusably slow (a bad load auto-rolls-back to the previous brain). Or: `kilo brain deploy /path/to/model.gguf`.
-- **A cloud model** (first-class here) — **`/cloud`** to pick a provider and paste a key: OpenRouter, OpenAI, Anthropic, Groq, DeepSeek, Together, Mistral, xAI, Gemini, Cerebras, Fireworks, Perplexity, Nebius, Hyperbolic, Ollama Cloud, Agnes AI, ModelScope, LLM7.io, OpenCode Zen, and GLHF.chat. These integrations use their documented OpenAI-compatible endpoints and Bearer authentication. Change a key anytime with **`/cloud key`**.
+## First run
 
-## Docs
-See [`docs/`](docs/) — architecture and build notes carry over from [Kilobyte](https://github.com/citadelconsortium/kilobyte). The only difference in this repo is that **no brain is bundled**; everything else is the same framework.
+```text
+kiloframe
+> /localset add local http://127.0.0.1:11434
+> /local pull llama3.2
+> /local select llama3.2
+> what is the gateway address on this host, Sir?
+```
 
----
-<p align="center"><sub>Kilobyte Framework · © 0v3r51ght · free for commercial use</sub></p>
+`/local`, `/localset`, `/switch`, `/thinking`, `/private`, `/cloud`, `/model`, `/agent`, `/help`, `/chats`, `/delete`, `/cancel`, `/new`, `/clear`, `/quit`.
+
+## Documentation
+
+See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the module map and the agent loop, and the GitHub Wiki for the full user and operator guides.
+
+## License
+
+MIT — see [`LICENSE`](LICENSE).
+
+— 0v3r51ght, Citadel Consortium

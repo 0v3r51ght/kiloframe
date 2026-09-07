@@ -1,14 +1,14 @@
 [project]
-name = "kilobyte"
-version = "1.14.0"
-description = "Local-first terminal AI powered by one persistent GGUF brain"
+name = "kiloframe"
+version = "1.0.0"
+description = "Local-first terminal AI agent powered by Ollama, with optional cloud providers"
 requires-python = ">=3.11"
 license = {text = "MIT"}
 dependencies = ["prompt_toolkit>=3.0", "Pygments>=2.15"]
 
 [project.scripts]
-kilo = "kilobyte.cli:main"
-kilobyte-daemon = "kilobyte.daemon:main"
+kiloframe = "kiloframe.cli:main"
+kiloframe-daemon = "kiloframe.daemon:main"
 
 [build-system]
 requires = ["setuptools>=68"]

@@ -2,8 +2,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from kilobyte.errors import PermissionDenied, SecurityError
-from kilobyte.security import CommandPolicy, PathPolicy, PermissionManager, Risk
+from kiloframe.errors import PermissionDenied, SecurityError
+from kiloframe.security import CommandPolicy, PathPolicy, PermissionManager, Risk
 
 
 class SecurityTests(unittest.IsolatedAsyncioTestCase):
@@ -27,7 +27,7 @@ class SecurityTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(policy.assess("nmap 192.0.2.1").risk, Risk.WRITE)
         self.assertEqual(policy.assess("unknown-helper --do-it").risk, Risk.WRITE)
         self.assertEqual(policy.assess("ip link set lo down").risk, Risk.WRITE)
-        self.assertEqual(policy.assess("systemctl status kilobyte").risk, Risk.SAFE)
+        self.assertEqual(policy.assess("systemctl status kiloframe").risk, Risk.SAFE)
         self.assertEqual(policy.assess("sudo pacman -S x").risk, Risk.ELEVATED)
         self.assertEqual(policy.assess("rm thing").risk, Risk.DESTRUCTIVE)
         with self.assertRaises(SecurityError):

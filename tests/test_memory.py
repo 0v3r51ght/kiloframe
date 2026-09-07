@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from kilobyte.memory import MemoryStore
+from kiloframe.memory import MemoryStore
 
 
 class MemoryTests(unittest.TestCase):

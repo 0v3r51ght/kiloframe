@@ -2,11 +2,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from kilobyte.config import Settings
-from kilobyte.errors import SecurityError, ToolError
-from kilobyte.memory import MemoryStore
-from kilobyte.security import PermissionManager
-from kilobyte.tools import ToolContext, ToolRegistry
+from kiloframe.config import Settings
+from kiloframe.errors import SecurityError, ToolError
+from kiloframe.memory import MemoryStore
+from kiloframe.security import PermissionManager
+from kiloframe.tools import ToolContext, ToolRegistry
 
 
 class ToolTests(unittest.IsolatedAsyncioTestCase):
@@ -25,9 +25,9 @@ class ToolTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_read_list_and_command(self):
         path = Path(self.tmp.name) / "hello.txt"
-        path.write_text("hello Kilobyte", encoding="utf-8")
+        path.write_text("hello KiloFrame", encoding="utf-8")
         result = await self.tools.execute("read_file", {"path": str(path)}, self.context)
-        self.assertEqual(result["content"], "hello Kilobyte")
+        self.assertEqual(result["content"], "hello KiloFrame")
         command = await self.tools.execute("run_command", {"command": "/usr/bin/printf okay"}, self.context)
         self.assertEqual(command["stdout"], "okay")
 
@@ -96,7 +96,7 @@ class WebSecurityTests(unittest.TestCase):
     private-network block has to survive redirects and hostile responses."""
 
     def test_private_and_non_http_urls_are_refused(self):
-        from kilobyte.tools import _assert_public
+        from kiloframe.tools import _assert_public
 
         for url in ("http://127.0.0.1/", "http://192.168.1.1/admin", "http://[::1]/", "file:///etc/passwd", "gopher://example.com/"):
             with self.assertRaises((SecurityError, ToolError), msg=url):
@@ -105,7 +105,7 @@ class WebSecurityTests(unittest.TestCase):
     def test_redirect_targets_are_revalidated(self):
         """A public host answering 302 with a local address must not be followed;
         validating only the requested URL leaves the block bypassable."""
-        from kilobyte.tools import _ValidatingRedirectHandler
+        from kiloframe.tools import _ValidatingRedirectHandler
 
         handler = _ValidatingRedirectHandler()
         with self.assertRaises(SecurityError):

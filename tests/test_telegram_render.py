@@ -1,6 +1,6 @@
 import unittest
 
-from kilobyte.telegram_render import telegram_html, telegram_html_chunks
+from kiloframe.telegram_render import telegram_html, telegram_html_chunks
 
 
 class TelegramRenderTests(unittest.TestCase):

@@ -6,7 +6,7 @@ import urllib.error
 from pathlib import Path
 from unittest.mock import patch
 
-from kilobyte.providers import Provider, ProviderRegistry
+from kiloframe.providers import Provider, ProviderRegistry
 
 
 class _StreamResponse:

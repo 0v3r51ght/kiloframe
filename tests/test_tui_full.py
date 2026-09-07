@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 try:
     from prompt_toolkit.document import Document
-    from kilobyte.tui_full import KiloApp, STYLE as TUI_STYLE, _ChatLexer
+    from kiloframe.tui_full import KiloApp, STYLE as TUI_STYLE, _ChatLexer
 except ModuleNotFoundError as exc:
     if exc.name != "prompt_toolkit":
         raise

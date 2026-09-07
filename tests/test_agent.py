@@ -3,17 +3,20 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from kilobyte.agent import Agent, _parse_inline_tool_calls
-from kilobyte.config import Settings
-from kilobyte.memory import MemoryStore
-from kilobyte.security import PermissionManager
-from kilobyte.tools import ToolRegistry
+from kiloframe.agent import Agent, _parse_inline_tool_calls
+from kiloframe.config import Settings
+from kiloframe.memory import MemoryStore
+from kiloframe.security import PermissionManager
+from kiloframe.tools import ToolRegistry
 
 
 class FakeRuntime:
     def __init__(self):
         self.calls = 0
         self.ready_checks = 0
+
+    def active_model(self):
+        return "qwen2.5:14b"
 
     async def ensure_ready(self):
         self.ready_checks += 1
@@ -28,7 +31,7 @@ class FakeRuntime:
             yield {"usage": {"completion_tokens": 2}}
 
 
-class CapturingRuntime:
+class CapturingRuntime(FakeRuntime):
     def __init__(self):
         self.payload = None
 
@@ -40,7 +43,7 @@ class CapturingRuntime:
         yield {"delta": {"content": "ready"}}
 
 
-class DuplicateToolRuntime:
+class DuplicateToolRuntime(FakeRuntime):
     def __init__(self):
         self.payloads = []
 
@@ -55,7 +58,7 @@ class DuplicateToolRuntime:
             yield {"delta": {"content": "Linux, 2 CPUs"}}
 
 
-class PuntingRuntime:
+class PuntingRuntime(FakeRuntime):
     """First turn only announces an action; after the nudge it delivers the answer."""
 
     def __init__(self):
@@ -72,7 +75,7 @@ class PuntingRuntime:
             yield {"delta": {"content": "1+1 is 2."}}
 
 
-class InlineToolRuntime:
+class InlineToolRuntime(FakeRuntime):
     """Simulate providers that put tool XML in content instead of delta.tool_calls."""
 
     def __init__(self):
@@ -96,7 +99,7 @@ class InlineToolRuntime:
             yield {"delta": {"content": "Research complete."}}
 
 
-class ResearchGateRuntime:
+class ResearchGateRuntime(FakeRuntime):
     """Ignore research twice; the framework must keep driving through both tools."""
 
     def __init__(self):
@@ -148,7 +151,7 @@ class FakeResearchTools:
         return {"url": arguments["url"], "content": "verified source text"}
 
 
-class CapabilityDenialRuntime:
+class CapabilityDenialRuntime(FakeRuntime):
     def __init__(self):
         self.calls = 0
 
@@ -303,7 +306,7 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
             memory = MemoryStore(root / "memory.db")
             tools = ToolRegistry(settings, memory, PermissionManager(root / "policy.json"))
 
-            class AlwaysPunts:
+            class AlwaysPunts(FakeRuntime):
                 def __init__(self):
                     self.calls = 0
 
@@ -345,12 +348,15 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(any(e["type"] == "tool_end" and e["ok"] for e in events))
             self.assertEqual(runtime.calls, 2)
             self.assertEqual(runtime.ready_checks, 2)
+            self.assertEqual(
+                [event for event in events if event["type"] == "model"],
+                [{"type": "model", "location": "local", "label": "qwen2.5:14b"}],
+            )
             self.assertEqual(memory.stats()["tool_audit"], 1)
             memory.close()
 
     async def test_plain_chat_sends_the_stable_tool_schema(self):
-        """A plain answer still carries the full tool list: the prefix has to stay
-        identical between requests for llama-server's prompt cache to be reused."""
+        """A plain answer still carries the stable, full tool schema to Ollama."""
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
             settings = Settings(data_dir=root, config_dir=root, runtime_dir=root, log_dir=root, home=root)

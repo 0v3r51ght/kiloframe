@@ -2,12 +2,12 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from kilobyte import net
-from kilobyte.config import Settings
-from kilobyte.errors import ToolError
-from kilobyte.memory import MemoryStore
-from kilobyte.security import PermissionManager
-from kilobyte.tools import ToolContext, ToolRegistry
+from kiloframe import net
+from kiloframe.config import Settings
+from kiloframe.errors import ToolError
+from kiloframe.memory import MemoryStore
+from kiloframe.security import PermissionManager
+from kiloframe.tools import ToolContext, ToolRegistry
 
 
 def _reg(root):

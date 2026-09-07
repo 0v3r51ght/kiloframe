@@ -8,8 +8,8 @@ from types import SimpleNamespace
 from unittest import IsolatedAsyncioTestCase
 from unittest.mock import patch
 
-from kilobyte.security import Risk
-from kilobyte.telegram import TelegramBridge
+from kiloframe.security import Risk
+from kiloframe.telegram import TelegramBridge
 
 
 def _config(raw: str, payload: dict) -> Path:

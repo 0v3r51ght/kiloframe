@@ -1,6 +1,6 @@
 # Build notes
 
-What Kilobyte contains, what has been added, and the reasoning behind the decisions that
+What KiloFrame contains, what has been added, and the reasoning behind the decisions that
 are not obvious from the code.
 
 Framework version 1.14.0 · brain-free distribution (operator-supplied GGUF or explicit
@@ -8,7 +8,7 @@ cloud provider).
 
 ## What is in it
 
-**Brain.** There is exactly **one** Kilobyte brain, trained once by the maintainer and
+**Brain.** There is exactly **one** KiloFrame brain, trained once by the maintainer and
 shipped as a single prebuilt, checksum-pinned GGUF, served by one persistent `llama-server`.
 Installing Kilo *downloads* that brain and verifies its SHA-256 — it never trains. No
 adapters, no model picker, no automatic cloud fallback. Optional, explicit cloud escalation
@@ -45,7 +45,7 @@ installer that provisions dependencies, the service user, the model and the serv
 The framework's model-building path now renders native assistant function calls and tool
 results, with a fixed raw-GGUF gate plus an isolated real-framework RPC acceptance suite.
 The framework repository remains brain-free; it is tested with the companion
-`kilobyte-4.1-3b-q4_k_m.gguf` release but never downloads or bundles that model.
+`kiloframe-4.1-3b-q4_k_m.gguf` release but never downloads or bundles that model.
 
 The established single Kilo TUI box remains intact. Live work is compacted into `Ran`,
 `Explored`, `Wrote`, and `Used` rows with nested bounded results; leading model whitespace

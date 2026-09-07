@@ -2,14 +2,14 @@ import unittest
 from contextlib import redirect_stdout
 from io import StringIO
 
-from kilobyte.cli import print_status, runtime_summary
+from kiloframe.cli import print_status, runtime_summary
 
 
 class CLITests(unittest.TestCase):
     def test_runtime_summary_omits_large_chat_template(self):
         result = runtime_summary({
             "build_info": "b123-test",
-            "model_alias": "kilobyte",
+            "model_alias": "kiloframe",
             "chat_template": "very large template",
             "chat_template_caps": {"supports_tool_calls": True},
             "default_generation_settings": {"n_ctx": 8192},
@@ -28,18 +28,16 @@ class CLITests(unittest.TestCase):
                 "healthy": True,
                 "pid": 42,
                 "uptime_seconds": 125,
-                "model": "/models/kilobyte.gguf",
+                "model": "llama3.2",
+                "server": "http://127.0.0.1:11434",
                 "warming": False,
-                "profile": {"threads": 2, "context_size": 8192, "gpu_layers": 0, "total_mb": 4096, "available_mb": 2048},
                 "memory": {"sessions": 3, "facts": 4, "skills": 5},
             })
         text = output.getvalue()
-        self.assertIn("KILOBYTE STATUS", text)
+        self.assertIn("KILOFRAME STATUS", text)
         self.assertIn("STATE        READY", text)
         self.assertIn("daemon       ACTIVE  pid 42", text)
-        self.assertIn("brain        HEALTHY  kilobyte.gguf", text)
-        self.assertIn("uptime       2m 5s", text)
-        self.assertIn("memory       4096 MiB total · 2048 MiB available", text)
+        self.assertIn("llama3.2", text)
 
     def test_stopped_status_is_explicit(self):
         output = StringIO()

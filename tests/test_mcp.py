@@ -12,8 +12,8 @@ import unittest
 from pathlib import Path
 from unittest import IsolatedAsyncioTestCase
 
-from kilobyte.errors import ToolError
-from kilobyte.mcp import MCPRegistry, MCPServer, MCPServerConfig
+from kiloframe.errors import ToolError
+from kiloframe.mcp import MCPRegistry, MCPServer, MCPServerConfig
 
 # A minimal spec-conformant server: newline-delimited JSON-RPC on stdout, logging on
 # stderr, one tool, and an error path.

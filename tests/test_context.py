@@ -1,7 +1,7 @@
 import json
 import unittest
 
-from kilobyte.context import CHARS_PER_TOKEN, as_tool_message, compact, shorten
+from kiloframe.context import CHARS_PER_TOKEN, as_tool_message, compact, shorten
 
 
 class ShortenTests(unittest.TestCase):

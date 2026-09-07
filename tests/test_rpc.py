@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 
-from kilobyte.rpc import RPCServer
+from kiloframe.rpc import RPCServer
 
 
 class RPCDisconnectTests(unittest.IsolatedAsyncioTestCase):

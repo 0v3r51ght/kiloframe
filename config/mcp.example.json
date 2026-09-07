@@ -2,7 +2,7 @@
   "servers": {
     "filesystem": {
       "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/home/kilobyte"],
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/home/kiloframe"],
       "enabled": false
     }
   }

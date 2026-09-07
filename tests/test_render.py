@@ -1,7 +1,7 @@
 import unittest
 
-from kilobyte.render import MarkdownStream
-from kilobyte.theme import _ANSI, visible_len
+from kiloframe.render import MarkdownStream
+from kiloframe.theme import _ANSI, visible_len
 
 
 class MarkdownStreamTests(unittest.TestCase):

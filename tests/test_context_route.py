@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from kilobyte.providers import ProviderRegistry
+from kiloframe.providers import ProviderRegistry
 
 
 class ActiveContextTests(unittest.TestCase):

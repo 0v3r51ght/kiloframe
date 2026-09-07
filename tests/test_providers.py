@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import patch
 from pathlib import Path
 
-from kilobyte.providers import ProviderError, ProviderRegistry, _model_ids
+from kiloframe.providers import ProviderError, ProviderRegistry, _model_ids
 
 
 def _config(raw: str, payload: dict) -> Path:

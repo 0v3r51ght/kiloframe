@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+export PYTHONPATH="/opt/kiloframe/app/src${PYTHONPATH:+:$PYTHONPATH}"
+PYTHON_BIN="${KILOFRAME_PYTHON:-$(command -v python3 || command -v python)}"
+[[ -n "$PYTHON_BIN" ]] || { echo "Python 3.11+ is required." >&2; exit 1; }
+exec "$PYTHON_BIN" -m kiloframe.cli "$@"

@@ -1,5 +1,0 @@
-#!/usr/bin/env bash
-export PYTHONPATH="/opt/kilobyte/app/src${PYTHONPATH:+:$PYTHONPATH}"
-PYTHON_BIN="${KILOBYTE_PYTHON:-$(command -v python3 || command -v python)}"
-[[ -n "$PYTHON_BIN" ]] || { echo "Python 3.11+ is required." >&2; exit 1; }
-exec "$PYTHON_BIN" -m kilobyte.cli "$@"

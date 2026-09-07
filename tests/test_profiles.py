@@ -1,6 +1,6 @@
 import unittest
 
-from kilobyte.profiles import CONVERSATION, ORCHESTRATOR, PROFILES, SECURITY, select
+from kiloframe.profiles import CONVERSATION, ORCHESTRATOR, PROFILES, SECURITY, select
 
 
 class ProfileSelectionTests(unittest.TestCase):

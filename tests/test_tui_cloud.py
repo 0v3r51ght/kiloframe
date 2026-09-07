@@ -3,7 +3,7 @@ import asyncio
 import unittest
 
 try:
-    from kilobyte.tui_full import KiloApp
+    from kiloframe.tui_full import KiloApp
     HAVE_PTK = True
 except Exception:
     HAVE_PTK = False

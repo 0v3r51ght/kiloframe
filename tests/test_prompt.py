@@ -1,6 +1,6 @@
 import unittest
 
-from kilobyte.prompt import SYSTEM_PROMPT
+from kiloframe.prompt import SYSTEM_PROMPT
 
 
 class PromptContractTests(unittest.TestCase):

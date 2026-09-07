@@ -1,6 +1,6 @@
-# Kilobyte architecture
+# KiloFrame architecture
 
-Kilobyte is a local-first terminal AI built around exactly one prebuilt GGUF brain. The
+KiloFrame is a local-first terminal AI built around exactly one prebuilt GGUF brain. The
 model reasons and chooses tools; deterministic Python owns everything that must not be
 left to a language model.
 
@@ -9,13 +9,13 @@ left to a language model.
              │                  │
              └────── IPC ───────┘
                      │
-             Kilobyte daemon
+             KiloFrame daemon
                      │
    ┌────────┬────────┼────────┬─────────┐
    │        │        │        │         │
  agent   tools   memory  resources  security
    │
-llama-server ── kilobyte-brain.gguf
+llama-server ── kiloframe-brain.gguf
 ```
 
 ## Principles

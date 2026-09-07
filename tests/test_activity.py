@@ -1,6 +1,6 @@
 import unittest
 
-from kilobyte.activity import format_arguments, format_result_lines, format_summary
+from kiloframe.activity import format_arguments, format_result_lines, format_summary
 
 
 class ActivityRenderingTests(unittest.TestCase):

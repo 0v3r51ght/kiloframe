@@ -3,9 +3,9 @@ import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
 
-from kilobyte.rpc import RPCClient
-from kilobyte.theme import Box, visible_len
-from kilobyte.tui import TerminalUI
+from kiloframe.rpc import RPCClient
+from kiloframe.theme import Box, visible_len
+from kiloframe.tui import TerminalUI
 
 
 class PanelRenderTests(unittest.TestCase):
