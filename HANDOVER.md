@@ -217,17 +217,7 @@ Developed by Citadel Research
 ## 4. Work Left to Do
 
 ### 🔴 High Priority
-1. **Transfer GitHub Repository**
-   - Currently at: https://github.com/0v3r51ght/kiloframe
-   - Target: https://github.com/citadelconsortium/kiloframe
-   - Action: Manual transfer required via GitHub UI
-   - Steps:
-     1. Go to https://github.com/0v3r51ght/kiloframe/settings
-     2. Click "Transfer ownership"
-     3. Enter `citadelconsortium/kiloframe`
-     4. Confirm transfer
-
-2. **Live End-to-End Testing on CEO**
+1. **Live End-to-End Testing on CEO**
    - Install on CEO machine via SSH
    - Test installer: `sudo ./scripts/install.sh`
    - Test daemon startup
