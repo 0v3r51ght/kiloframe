@@ -68,3 +68,17 @@ See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the module map and the ag
 MIT — see [`LICENSE`](LICENSE).
 
 — 0v3r51ght, Citadel Consortium
+
+## Verify Installer Integrity
+
+```bash
+# Download installer
+curl -fsSL https://raw.githubusercontent.com/0v3r51ght/kiloframe/main/scripts/install-online.sh -o install-online.sh
+
+# Check SHA-256
+sha256sum install-online.sh
+# Expected: <see release page for current hash>
+
+# Run installer
+sudo bash install-online.sh
+```
