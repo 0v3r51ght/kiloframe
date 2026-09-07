@@ -195,7 +195,7 @@ class TerminalUI:
         detail = format_arguments(arguments, 500)
         return "Used", f"{name}{(' ' + detail) if detail else ''}"
 
-    async def ask(self, text: str) -> None:
+    async def ask(self, text: str) -> bool:
         reader, writer = await asyncio.open_unix_connection(self.client.socket_path)
         request: dict[str, Any] = {"command": "chat", "text": text, "session_id": self.session_id, "cwd": str(Path.cwd()), "fresh": self.fresh_session}
         self.fresh_session = False
@@ -214,6 +214,7 @@ class TerminalUI:
         tool_started = started
         tools_used: list[str] = []
         first_token_at: float | None = None
+        succeeded = True
 
         def emit(formatted: str) -> None:
             """Write formatted text into the panel, keeping the border gutter."""
@@ -292,6 +293,7 @@ class TerminalUI:
                     await self._permission(event, writer)
                     state["streaming"] = False
                 elif kind == "error":
+                    succeeded = False
                     emit(markdown.flush())
                     if not at_line_start:
                         sys.stdout.write("\n")
@@ -333,6 +335,7 @@ class TerminalUI:
                     parts.append(f"tools: {', '.join(dict.fromkeys(tools_used))}")
                 self._rule_bottom(GREEN, " · ".join(parts))
             print()
+        return succeeded
 
     # ---- command loop ------------------------------------------------------
 

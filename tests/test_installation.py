@@ -14,6 +14,12 @@ class InstallationTests(unittest.TestCase):
         unit = (Path(__file__).parents[1] / "systemd" / "kiloframe.service").read_text()
         self.assertIn("WantedBy=multi-user.target", unit)
 
+    def test_installers_do_not_assume_a_systemctl_binary_means_systemd_is_running(self):
+        scripts = Path(__file__).parents[1] / "scripts"
+        for name in ("install.sh", "install-online.sh", "uninstall.sh"):
+            text = (scripts / name).read_text()
+            self.assertIn("systemctl show-environment", text, name)
+
     def test_installers_agree_on_the_service_account(self):
         """The unit hardcodes a user while the installers choose one. If they disagree,
         the service runs as one account with its data owned by another and every write
@@ -22,7 +28,10 @@ class InstallationTests(unittest.TestCase):
         for name in ("install.sh", "install-online.sh"):
             text = (scripts / name).read_text()
             self.assertIn('KILOFRAME_USER:-kiloframe}"', text, f"{name} defaults to a different account")
-            self.assertNotIn("SUDO_USER", text, f"{name} still derives the account from the invoking user")
+            if name == "install.sh":
+                self.assertIn("usermod -aG", text, "installer must grant the invoking administrator socket access")
+            else:
+                self.assertNotIn("SUDO_USER", text, f"{name} must not derive the service account from the invoking user")
 
     def test_install_rewrites_the_unit_for_the_chosen_account(self):
         install = (Path(__file__).parents[1] / "scripts" / "install.sh").read_text()
@@ -39,6 +48,7 @@ class InstallationTests(unittest.TestCase):
         self.assertIn("127.0.0.1:11434", install)
         self.assertIn("ollama.json", install)
         self.assertIn("KiloFrame installed", install)
+        self.assertIn('install -d -m 0750 -o "$KILO_USER" -g "$KILO_GROUP" /etc/kiloframe', install)
 
     def test_installer_no_longer_references_the_old_gguf_path(self):
         for name in ("install.sh", "install-online.sh"):

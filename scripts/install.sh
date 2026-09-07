@@ -36,6 +36,12 @@ fi
 KILO_USER="${KILOFRAME_USER:-kiloframe}"
 KILO_GROUP="$(id -gn "$KILO_USER" 2>/dev/null || echo "$KILO_USER")"
 
+# A container can have a systemctl binary without systemd as PID 1.  Invoking it
+# there makes a successful file installation look like a failed KiloFrame install.
+has_systemd() {
+    command -v systemctl >/dev/null 2>&1 && systemctl show-environment >/dev/null 2>&1
+}
+
 if command -v pacman >/dev/null; then
     pacman -Syu --needed --noconfirm python python-prompt_toolkit python-pygments curl sqlite ripgrep
 elif command -v apt-get >/dev/null; then
@@ -77,8 +83,19 @@ if ! id "$KILO_USER" >/dev/null 2>&1; then
 fi
 KILO_GROUP="$(id -gn "$KILO_USER")"
 
+# The daemon socket is intentionally group-restricted rather than world-writable.
+# Let the administrator who invoked sudo use the installed CLI after a fresh login.
+if [[ -n "${SUDO_USER:-}" && "$SUDO_USER" != "root" ]] && id "$SUDO_USER" >/dev/null 2>&1; then
+    usermod -aG "$KILO_GROUP" "$SUDO_USER"
+    echo "Added $SUDO_USER to group $KILO_GROUP (open a new login session after installation)."
+fi
+
 echo "Installing KiloFrame application..."
-install -d -m 0755 /opt/kiloframe/app /etc/kiloframe
+install -d -m 0755 /opt/kiloframe/app
+# Ollama and provider configuration is changed by the daemon, which runs as the
+# service account.  The directory (not just existing files) must therefore be
+# writable for atomic replace() updates.
+install -d -m 0750 -o "$KILO_USER" -g "$KILO_GROUP" /etc/kiloframe
 install -d -m 0750 -o "$KILO_USER" -g "$KILO_GROUP" /var/lib/kiloframe /var/log/kiloframe
 cp -a "$ROOT/src" "$ROOT/pyproject.toml" /opt/kiloframe/app/
 chown -R root:root /opt/kiloframe/app
@@ -98,10 +115,13 @@ if [[ ! -f /etc/kiloframe/ollama.json ]]; then
     chmod 0600 /etc/kiloframe/ollama.json
     chown "$KILO_USER":"$KILO_GROUP" /etc/kiloframe/ollama.json
 fi
-if command -v systemctl >/dev/null; then
+if has_systemd; then
     systemctl daemon-reload
     systemctl enable kiloframe.service
 else
-    echo "systemd not detected; run $PYTHON_BIN -m kiloframe.daemon with PYTHONPATH=/opt/kiloframe/app/src under your init system."
+    # The daemon's socket path must be writable for an init-system-independent run.
+    install -d -m 0750 -o "$KILO_USER" -g "$KILO_GROUP" /run/kiloframe
+    echo "systemd is not operational; installation is complete. Start the daemon with:"
+    echo "  sudo -u $KILO_USER env PYTHONPATH=/opt/kiloframe/app/src $PYTHON_BIN -m kiloframe.daemon"
 fi
 echo "KiloFrame installed. Run: kiloframe (then /local to add an Ollama server or /cloud for hosted models)"

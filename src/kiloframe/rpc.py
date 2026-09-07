@@ -73,6 +73,8 @@ class RPCServer:
                 status = self.runtime.status()
                 status["healthy"] = await self.runtime.healthy()
                 status["memory"] = self.memory.stats()
+                # Host capacity is runtime data, not invented model metadata.
+                status["profile"] = self.resources.profile().to_dict()
                 await self._send(writer, {"type": "result", "data": status})
             elif command == "resources":
                 await self._send(
@@ -138,6 +140,11 @@ class RPCServer:
                     await self._send(
                         writer, {"type": "result", "data": {"ok": False, "error": str(exc)}}
                     )
+            elif command == "ollama_thinking_capability":
+                await self._send(
+                    writer,
+                    {"type": "result", "data": await self.runtime.thinking_capability()},
+                )
             elif command == "ollama_pull":
                 try:
                     model = str(request.get("model", "")).strip()
@@ -159,6 +166,18 @@ class RPCServer:
                     model = str(request.get("model", "")).strip()
                     if not model:
                         raise ValueError("a model name is required")
+                    # Selection is not a promise that a model exists.  Check the
+                    # active server itself so remote storage is represented honestly.
+                    installed = await asyncio.to_thread(self.runtime.client().list_models)
+                    names = {
+                        str(item.get("name") or item.get("model") or "")
+                        for item in installed
+                        if isinstance(item, dict)
+                    }
+                    if model not in names:
+                        raise ValueError(
+                            f"{model!r} is not downloaded on the active Ollama server; use /local pull {model}"
+                        )
                     self.runtime.config.set_model(None, model)
                     server = self.runtime.active_server()
                     await self._send(

@@ -5,10 +5,8 @@
 ### Daemon won't start
 
 ```bash
-# Check logs
-sudo journalctl -u kiloframe -n 50
-# or
-tail -f /var/log/kiloframe/kiloframe.log
+# On a systemd host
+sudo journalctl -u kiloframe -n 50 --no-pager
 
 # Verify Ollama is running
 curl http://127.0.0.1:11434/api/version
@@ -20,13 +18,13 @@ kiloframe local status
 ### Permission denied errors
 
 ```bash
-# Fix ownership
+# Restore service ownership after inspecting an accidental change
 sudo chown -R kiloframe:kiloframe /etc/kiloframe
 sudo chown -R kiloframe:kiloframe /var/lib/kiloframe
 sudo chown -R kiloframe:kiloframe /var/log/kiloframe
 
-# Fix runtime directory
-sudo chmod 777 /run/kiloframe
+# Recreate the group-restricted runtime directory; do not make it world-writable
+sudo install -d -m 0750 -o kiloframe -g kiloframe /run/kiloframe
 ```
 
 ### Model not found
@@ -46,7 +44,8 @@ kiloframe local select llama3.2
 
 - Check Ollama server resources
 - Use smaller models (e.g., llama3.2:1b instead of 70b)
-- Reduce context size in config
+- Keep the default 2048-token context, or lower `KILOFRAME_OLLAMA_CONTEXT_TOKENS`
+  in the daemon environment if the server reports GPU memory exhaustion
 - Check network latency for remote servers
 
 ### TUI not displaying
@@ -74,10 +73,10 @@ echo $COLUMNS $LINES
 # Backup current config
 sudo cp -r /etc/kiloframe /etc/kiloframe.backup
 
-# Reset to defaults
-sudo rm /etc/kiloframe/ollama.json
-sudo rm /etc/kiloframe/providers.json
-# Run installer again to recreate
+# Reset only after taking the backup above
+sudo rm -f /etc/kiloframe/ollama.json
+sudo rm -f /etc/kiloframe/providers.json
+# Run the installer again to recreate empty defaults
 ```
 
 ## Logs
@@ -86,9 +85,6 @@ sudo rm /etc/kiloframe/providers.json
 # Service logs
 sudo journalctl -u kiloframe -f
 
-# Application logs
-tail -f /var/log/kiloframe/kiloframe.log
-
-# Daemon output
-cat /tmp/kiloframe-daemon.log
+# In a non-systemd environment, inspect the supervisor or terminal that launched
+# `python3 -m kiloframe.daemon`.
 ```

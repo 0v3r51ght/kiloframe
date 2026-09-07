@@ -50,6 +50,24 @@ class OllamaProtocolTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(OllamaError):
                 _ = [e async for e in OllamaClient("http://localhost:11434").chat_stream("test", [])]
 
+    async def test_chat_explicitly_disables_native_thinking_by_default(self):
+        captured = []
+        def open_request(request, **kwargs):
+            captured.append(json.loads(request.data))
+            return io.BytesIO(b'{"done":true}\n')
+        with patch("urllib.request.urlopen", side_effect=open_request):
+            _ = [e async for e in OllamaClient("http://localhost:11434").chat_stream("test", [])]
+        self.assertIs(captured[0]["think"], False)
+
+    async def test_chat_forwards_the_configured_context_limit(self):
+        captured = []
+        def open_request(request, **kwargs):
+            captured.append(json.loads(request.data))
+            return io.BytesIO(b'{"done":true}\n')
+        with patch("urllib.request.urlopen", side_effect=open_request):
+            _ = [e async for e in OllamaClient("http://localhost:11434").chat_stream("test", [], num_ctx=2048)]
+        self.assertEqual(captured[0]["options"]["num_ctx"], 2048)
+
 
 class OllamaConfigurationTests(unittest.TestCase):
     def test_invalid_server_does_not_overwrite_existing_configuration(self):

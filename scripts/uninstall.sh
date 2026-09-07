@@ -9,14 +9,18 @@ fi
 KILO_USER="${KILOFRAME_USER:-kiloframe}"
 KILO_GROUP="$(id -gn "$KILO_USER" 2>/dev/null || echo "$KILO_USER")"
 
+has_systemd() {
+    command -v systemctl >/dev/null 2>&1 && systemctl show-environment >/dev/null 2>&1
+}
+
 echo "Stopping and disabling KiloFrame service..."
-if command -v systemctl >/dev/null; then
+if has_systemd; then
     systemctl stop kiloframe.service || true
     systemctl disable kiloframe.service || true
     rm -f /etc/systemd/system/kiloframe.service
     systemctl daemon-reload
 else
-    echo "systemd not detected; please stop the kiloframe daemon manually."
+    echo "systemd is not operational; stop any manually launched KiloFrame daemon first."
 fi
 
 echo "Removing KiloFrame user and groups..."

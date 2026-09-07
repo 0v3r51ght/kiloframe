@@ -35,6 +35,11 @@ class Settings:
     # Allowance for replayed conversation, so old turns cannot crowd out the current
     # task or the tool results it depends on.
     max_history_tokens: int = 1800
+    # A conservative default avoids an Ollama GPU OOM from an oversized KV cache.
+    # Operators can raise it deliberately after checking their server capacity.
+    ollama_context_tokens: int = field(
+        default_factory=lambda: int(os.environ.get("KILOFRAME_OLLAMA_CONTEXT_TOKENS", "2048"))
+    )
     max_read_bytes: int = 2 * 1024 * 1024
     memory_message_limit: int = 10_000
     memory_fact_limit: int = 2_000

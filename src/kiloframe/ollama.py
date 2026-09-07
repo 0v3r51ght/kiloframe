@@ -312,7 +312,8 @@ class OllamaClient:
         max_tokens: int | None = None,
         temperature: float = 0.4,
         top_p: float = 0.9,
-        think: str | None = None,
+        num_ctx: int | None = None,
+        think: str | bool | None = None,
         keep_alive: str = "5m",
     ) -> AsyncIterator[dict[str, Any]]:
         """Stream a native Ollama chat completion, translated to the framework's
@@ -347,11 +348,14 @@ class OllamaClient:
         if tools:
             payload["tools"] = tools
         options: dict[str, Any] = {"temperature": temperature, "top_p": top_p}
+        if num_ctx is not None:
+            options["num_ctx"] = num_ctx
         if max_tokens is not None:
             options["num_predict"] = max_tokens
         payload["options"] = options
-        if think:
-            payload["think"] = think
+        # Reasoning models may default to a long hidden trace. Native thinking is
+        # opt-in through /thinking, so ordinary requests return visible output promptly.
+        payload["think"] = think if think else False
 
         def open_request():
             return urllib.request.urlopen(

@@ -1,5 +1,6 @@
 import asyncio
 import json
+import shutil
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -17,6 +18,22 @@ except ModuleNotFoundError as exc:
 
 @unittest.skipIf(KiloApp is None, "prompt_toolkit is not installed in the raw source-test environment")
 class FullTUIDirectChatTests(unittest.IsolatedAsyncioTestCase):
+    def test_command_panel_is_a_closed_readable_box(self):
+        app = KiloApp(SimpleNamespace(socket_path=Path("/tmp/in-memory.sock")))
+        with patch("shutil.get_terminal_size", return_value=SimpleNamespace(columns=100, lines=30)):
+            app._command_panel("Help", ["/local status", "/thinking on"])
+        rendered = app.output.buffer.text
+        self.assertIn("╭─ Help ", rendered)
+        self.assertIn("│ /local status", rendered)
+        self.assertIn("│ /thinking on", rendered)
+        self.assertTrue(rendered.rstrip().endswith("╯"))
+
+    def test_narrow_header_keeps_the_wordmark_without_status_text_overwriting_it(self):
+        app = KiloApp(SimpleNamespace(socket_path=Path("/tmp/in-memory.sock")))
+        with patch("shutil.get_terminal_size", return_value=SimpleNamespace(columns=80, lines=24)):
+            text = "".join(value for _style, value in app._banner_text()).splitlines()[0]
+        self.assertIn("██╗", text)
+        self.assertNotIn("KILOFRAME  ", text)
     def test_python_fence_receives_language_aware_syntax_styles(self):
         document = Document(
             "\u2502 ```python                         \u2502\n"

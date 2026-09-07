@@ -38,6 +38,16 @@ class CLITests(unittest.TestCase):
         self.assertIn("STATE        READY", text)
         self.assertIn("daemon       ACTIVE  pid 42", text)
         self.assertIn("llama3.2", text)
+        self.assertIn("control", text)
+
+    def test_reachable_server_without_a_model_is_not_ready(self):
+        output = StringIO()
+        with redirect_stdout(output):
+            print_status({"running": True, "healthy": True, "model": "", "server": "http://127.0.0.1:11434"})
+        text = output.getvalue()
+        self.assertIn("STATE        MODEL REQUIRED", text)
+        self.assertIn("none selected", text)
+        self.assertIn("kiloframe local select", text)
 
     def test_stopped_status_is_explicit(self):
         output = StringIO()
@@ -46,6 +56,7 @@ class CLITests(unittest.TestCase):
         text = output.getvalue()
         self.assertIn("STATE        STOPPED", text)
         self.assertIn("daemon       INACTIVE", text)
+        self.assertIn("start        ", text)
 
 
 if __name__ == "__main__":

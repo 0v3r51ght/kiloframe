@@ -84,6 +84,28 @@ sudo systemctl status kiloframe
 sudo journalctl -u kiloframe -f
 ```
 
+### Containers and other non-systemd environments
+
+The installer detects when `systemctl` exists but systemd is not actually running. It
+still installs KiloFrame and creates the runtime directory, but cannot register a boot
+service. Start the daemon under your process supervisor, or for a temporary session:
+
+```bash
+sudo -u kiloframe env PYTHONPATH=/opt/kiloframe/app/src python3 -m kiloframe.daemon
+```
+
+Keep that process running, then launch `kiloframe` from an account permitted to use the
+KiloFrame socket. The daemon remains usable without Ollama; configure a server later
+with `kiloframe localset add <name> <url>`.
+
+### Ollama memory tuning
+
+KiloFrame sends a conservative 2048-token context limit to Ollama by default. This
+avoids GPU out-of-memory failures on smaller local or remote servers where a model can
+load but its default KV cache cannot. To raise it after confirming the server has enough
+memory, set `KILOFRAME_OLLAMA_CONTEXT_TOKENS` in the daemon environment (for example
+`4096`) and restart the daemon.
+
 ## Uninstall
 
 ```bash

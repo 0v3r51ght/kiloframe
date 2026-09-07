@@ -20,9 +20,9 @@ tar -xzf "$WORK/source.tar.gz" -C "$WORK"
 ROOT="$(find "$WORK" -mindepth 1 -maxdepth 1 -type d -name '*-'"$BRANCH" -print -quit)"
 [[ -n "$ROOT" ]] || { echo "downloaded repository has no source directory" >&2; exit 1; }
 sudo KILOFRAME_USER="$OWNER" "$ROOT/scripts/install.sh"
-if command -v systemctl >/dev/null; then
+if command -v systemctl >/dev/null && systemctl show-environment >/dev/null 2>&1; then
   sudo systemctl restart kiloframe.service
 else
-  echo "systemd not detected; register 'python3 -m kiloframe.daemon' with your init system."
+  echo "systemd is not operational; start the daemon with the manual command printed by the installer."
 fi
 echo "KiloFrame installed. Run: kiloframe (then /local to add an Ollama server or /cloud for hosted models)"

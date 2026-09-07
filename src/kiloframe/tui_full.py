@@ -135,7 +135,7 @@ STYLE = Style.from_dict({
 _COMMANDS = [
     ("/commands", "show every TUI command"),
     ("/help", "show command help"),
-    ("/thinking ", "off | low | medium | high | max — thinking/effort depth"),
+    ("/thinking ", "off | on | low | medium | high — model-supported thinking control"),
     ("/effort ", "high | medium | low — reply depth vs speed"),
     ("/agent ", "force a specialist: orchestrator research coding security math engineering systems private"),
     ("/local", "Ollama local/remote model route: status, models, pick, pull, unload"),
@@ -153,7 +153,6 @@ _COMMANDS = [
     ("/cancel", "stop the running request and clear the queue"),
     ("/new", "start a fresh session"),
     ("/clear", "clear the screen"),
-    ("/help", "list commands"),
     ("/quit", "exit KiloFrame"),
     ("/exit", "exit KiloFrame (alias)"),
     ("/q", "exit KiloFrame (alias)"),
@@ -369,17 +368,14 @@ class KiloApp:
     # ---- layout -------------------------------------------------------------
 
     def _shimmer(self, art: str, row: int):
-        """Split one wordmark line into segments with a bright band that sweeps across,
-        giving the logo a diagonal light-sweep. Cheap: a handful of short segments."""
-        span = len(art) + 14  # sweep a little past both edges so there is a brief pause
-        head = self.spin % span
-        out: list[tuple[str, str]] = [("class:banner", "  ")]
-        for col, ch in enumerate(art):
-            # Diagonal: the band leads on lower rows, so the highlight tilts as it moves.
-            lit = ch != " " and abs(col - (head - row)) <= 1
-            out.append(("class:banner.hi" if lit else "class:banner", ch))
-        out.append(("class:banner", "   "))
-        return out
+        """Return a stable wordmark row.
+
+        Repainting a multibyte block glyph one cell at a time makes some terminals show
+        broken fragments while the animation ticks. The activity bar is the right place
+        for motion; the product name must stay still and legible.
+        """
+        del row
+        return [("class:banner", "  " + art + "   ")]
 
     @staticmethod
     def _seg_len(segs) -> int:
@@ -417,10 +413,14 @@ class KiloApp:
             [("class:dim", "tools   files · shell · web · memory · skills")],
             [("class:tagline", "/help · F2 sidebar · Ctrl-Q quit")],
         ]
+        # The block wordmark is the non-negotiable part of the header. On an 80-column
+        # terminal it fits, but the additional status column does not; dropping that
+        # secondary column prevents the logo from writing into (or under) the sidebar.
+        inline_info = self._cw() >= len(KILO_ART[0]) + 34
         rows: list[tuple[str, str]] = []
         for i, art in enumerate(KILO_ART):
             rows += self._shimmer(art, i)
-            line = info[i] if i < len(info) else []
+            line = info[i] if inline_info and i < len(info) else []
             rows += line
             rows.append(("", "\n"))
         # Centered credit line under the wordmark, per the KiloFrame identity.
@@ -443,9 +443,18 @@ class KiloApp:
                 dots = ELLIPSIS[(self.spin // 3) % len(ELLIPSIS)]
                 head = [("class:stat", f" {glyph} "), ("class:kilo", phase), ("class:dim", f" {dots}")]
         else:
-            # A gentle wave drifts while idle so the bar is never static.
+            # Do not call the application ready merely because the daemon socket is
+            # alive.  A reachable Ollama server still needs a selected model.
             wave = "".join(PULSE[(self.spin + i) % len(PULSE)] for i in range(3))
-            head = [("class:stat", f" {wave} "), ("class:dim", "ready")]
+            if not self.status.get("healthy"):
+                state = "Ollama offline"
+            elif not self.status.get("model"):
+                state = "select a model (/local)"
+            elif not self._ollama_running:
+                state = "model ready · not loaded"
+            else:
+                state = "ready"
+            head = [("class:stat", f" {wave} "), ("class:dim", state)]
         bar = head + [
             ("class:stat.k", "   ⏱ "), ("class:stat", f"{elapsed:0.0f}s"),
             ("class:stat.k", "   ↗ requests "), ("class:stat", str((self.status.get("memory") or {}).get("requests", 0))),
@@ -595,6 +604,19 @@ class KiloApp:
         new = buff.text + text
         buff.set_document(Document(new, len(new)), bypass_readonly=True)
 
+    def _command_panel(self, title: str, lines: list[str]) -> None:
+        """Keep command feedback readable instead of adding loose transcript text."""
+        self._append("\n" + self._rule(title) + "\n")
+        inner = max(1, self._cw() - 3)
+        for line in lines:
+            text = line or ""
+            if not text:
+                self._bline()
+            while text:
+                self._bline(text[:inner])
+                text = text[inner:]
+        self._append(self._rule() + "\n")
+
     # ---- interaction --------------------------------------------------------
 
     def _accept(self, buff) -> bool:
@@ -629,31 +651,23 @@ class KiloApp:
             self._append("— new session · the previous chat is saved (use /kilochats to reopen it) —\n")
             return True
         if text == "/help":
-            self._append(
-                "\ncommands:\n"
-                "  /thinking off|low|medium|high|max   thinking/effort depth\n"
-                "  /effort high|medium|low   reply depth vs speed\n"
-                "  /agent <name>|off         force research|coding|security|math|engineering|systems, or auto\n"
-                "  /local                    Ollama route: status, models, pick, pull, unload\n"
-                "  /localset                  configure Ollama servers (add/remove/switch)\n"
-                "  /switch                    flip between Ollama and cloud (Ollama default)\n"
-                "  /chats · /kilochats        list past chats; type a number to continue one\n"
-                "  /chat <n>                 open a past session by number\n"
-                "  /delete [n|n,m|all]       delete chats you choose (lists them if no number)\n"
-                "  /cloud [question]         set up / use a cloud model (key selector)\n"
-                "  /botkey [token]           set or change the Telegram bot token\n"
-                "  /private [on|off|rotate]  mask web via Tor — hide IP, rotate exit\n"
-                "  /model [name]             show or change the cloud model\n"
-                "  /cancel                   stop the running request and clear the queue\n"
-                "  /new · /clear · /quit\n"
-                "keys: F2 sidebar · Ctrl-C cancel · Ctrl-Q quit\n"
-            )
+            self._command_panel("Help", [
+                "/thinking off|on|low|medium|high   model-supported thinking control",
+                "/effort high|medium|low             reply depth vs speed",
+                "/agent <name>|off                   select a specialist or restore auto",
+                "/local [status|models|ps|pull|select|unload]",
+                "/localset [list|add|remove|default] configure Ollama servers",
+                "/switch · /cloud · /model            change route or cloud model",
+                "/chats · /chat · /delete             manage conversations",
+                "/private [on|off|rotate] · /cancel · /new · /clear · /quit",
+                "F2 sidebar · Ctrl-C cancel · Ctrl-Q quit · /commands full reference",
+            ])
             return True
         if text == "/chats":
             self._spawn(self._list_chats())
             return True
         if text == "/commands":
-            self._append("\ncommands:\n" + "\n".join(f"  {name:<18} {description}" for name, description in _COMMANDS) + "\n")
+            self._command_panel("Commands", [f"{name:<18} {description}" for name, description in _COMMANDS])
             return True
         if text.startswith("/botkey"):
             token = text[len("/botkey"):].strip()
@@ -705,21 +719,50 @@ class KiloApp:
         if text.startswith("/thinking"):
             parts = text.split()
             level = parts[1].lower() if len(parts) > 1 else ""
-            if level in {"off", "low", "medium", "high", "max"}:
-                self.thinking = level
-                if level != "off":
-                    # A thinking level also lifts the planning/execution budget.
-                    self.effort = {"low": "low", "medium": "medium", "high": "high", "max": "high"}[level]
-                self._append(f"\n— thinking set to {level} —\n"
-                             "   (planning/execution budget applies to every route; native\n"
-                             "    thinking is forwarded to Ollama reasoning models only)\n")
+            if level in {"off", "on", "low", "medium", "high"}:
+                self._spawn(self._set_thinking(level))
             else:
-                self._append("\n— use /thinking off|low|medium|high|max —\n")
+                self._append("\n— use /thinking off|on|low|medium|high —\n")
+            return True
+        if text.startswith("/local "):
+            parts = text.split(maxsplit=2)
+            action = parts[1].lower()
+            value = parts[2].strip() if len(parts) == 3 else ""
+            if action == "status":
+                self._spawn(self._local_status())
+            elif action in {"models", "list"}:
+                self._spawn(self._local_models())
+            elif action in {"ps", "running"}:
+                self._spawn(self._local_running())
+            elif action == "pull" and value:
+                self._spawn(self._local_pull(value))
+            elif action == "select" and value:
+                self._spawn(self._local_select(value))
+            elif action == "unload":
+                self._spawn(self._local_unload(value or None))
+            else:
+                self._append("\n— /local [status|models|ps|pull <model>|select <model>|unload [model]] —\n")
             return True
         if text == "/local":
             self._spawn(self._local_menu())
             return True
-        if text.startswith("/localset"):
+        if text.startswith("/localset "):
+            parts = text.split(maxsplit=2)
+            action = parts[1].lower()
+            value = parts[2].strip() if len(parts) == 3 else ""
+            if action == "list":
+                self._spawn(self._localset_menu())
+            elif action == "add" and len(value.split(maxsplit=1)) == 2:
+                name, url = value.split(maxsplit=1)
+                self._spawn(self._localset_add(name, url))
+            elif action == "remove" and value:
+                self._spawn(self._localset_remove(value))
+            elif action in {"default", "switch"} and value:
+                self._spawn(self._localset_default(value))
+            else:
+                self._append("\n— /localset [list|add <name> <url>|remove <name>|default <name>] —\n")
+            return True
+        if text == "/localset":
             self._spawn(self._localset_menu())
             return True
         if text.startswith("/cloudswitch"):
@@ -1105,9 +1148,37 @@ class KiloApp:
     async def _refresh_ollama_running(self) -> None:
         try:
             if not self.cloud_active:
-                self._ollama_running = await self.client.request("ollama_running")
+                running = await self.client.request("ollama_running")
+                self._ollama_running = running if isinstance(running, list) else []
         except Exception:
             self._ollama_running = []
+
+    async def _set_thinking(self, level: str) -> None:
+        """Set native reasoning only after checking the selected route's capability."""
+        if level == "off":
+            self.thinking = "off"
+            self._append("\n— native thinking disabled —\n")
+            return
+        if self.cloud_active:
+            self._append("\n— /thinking is unavailable on the active cloud route; this provider has not advertised a compatible control —\n")
+            return
+        try:
+            capability = await self.client.request("ollama_thinking_capability")
+        except (ConnectionError, FileNotFoundError, OSError) as exc:
+            self._append(f"\n⚠ could not inspect thinking support: {exc}\n")
+            return
+        if not capability.get("supported"):
+            self._append(f"\n— /thinking not enabled: {capability.get('reason', 'unsupported by the selected model')} —\n")
+            return
+        levels = set(capability.get("levels") or [])
+        if level == "on":
+            self.thinking = "on"
+            self._append(f"\n— native thinking enabled for {capability.get('model', 'the selected model')} —\n")
+        elif level in levels:
+            self.thinking = level
+            self._append(f"\n— native thinking set to {level} for {capability.get('model', 'the selected model')} —\n")
+        else:
+            self._append("\n— the selected model supports thinking but has not advertised effort levels; use /thinking on or /thinking off —\n")
 
     async def _model_picker(self) -> None:
         try:
@@ -1162,11 +1233,31 @@ class KiloApp:
         )
         self._pending = {"kind": "local_menu"}
 
+    async def _local_status(self) -> None:
+        try:
+            status = await self.client.request("ollama_status")
+        except (ConnectionError, FileNotFoundError, OSError) as exc:
+            self._append(f"\n⚠ {exc}\n")
+            return
+        if not status.get("healthy"):
+            self._append(f"\n◆ Ollama route unavailable\n  {status.get('error') or status.get('server') or 'no configured server'}\n")
+            return
+        self._append(
+            f"\n◆ Ollama route reachable\n"
+            f"  server     {status.get('server')}\n"
+            f"  model      {status.get('model') or 'none selected'}\n"
+            f"  downloaded {len(status.get('models') or [])}\n"
+            f"  loaded     {len(status.get('running') or [])}\n"
+        )
+
     async def _local_models(self) -> None:
         try:
             models = await self.client.request("ollama_models")
         except (ConnectionError, FileNotFoundError, OSError) as exc:
             self._append(f"\n⚠ {exc}\n")
+            return
+        if isinstance(models, dict):
+            self._append(f"\n⚠ {models.get('error', 'could not list models')}\n")
             return
         self._ollama_models = models or []
         if not models:
@@ -1186,6 +1277,9 @@ class KiloApp:
             running = await self.client.request("ollama_running")
         except (ConnectionError, FileNotFoundError, OSError) as exc:
             self._append(f"\n⚠ {exc}\n")
+            return
+        if isinstance(running, dict):
+            self._append(f"\n⚠ {running.get('error', 'could not list running models')}\n")
             return
         if not running:
             self._append("\n— no models currently running/loaded on the server —\n")
@@ -1224,9 +1318,9 @@ class KiloApp:
         else:
             self._append(f"\n⚠ {data.get('error', 'could not select model')}\n")
 
-    async def _local_unload(self) -> None:
+    async def _local_unload(self, model: str | None = None) -> None:
         try:
-            data = await self.client.request("ollama_unload")
+            data = await self.client.request("ollama_unload", model=model)
         except (ConnectionError, FileNotFoundError, OSError) as exc:
             self._append(f"\n⚠ {exc}\n")
             return
@@ -1540,6 +1634,7 @@ class KiloApp:
         self._queue = asyncio.Queue()
         self._worker = asyncio.create_task(self._worker_loop())
         ticker = asyncio.create_task(self._tick())
+        self._spawn(self._refresh_ollama_running())
         try:
             await self.app.run_async()
         finally:

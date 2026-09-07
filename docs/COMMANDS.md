@@ -30,8 +30,10 @@
 | `kiloframe localset` | Show servers |
 | `kiloframe localset add <name> <url>` | Add Ollama server |
 | `kiloframe localset remove <name>` | Remove server |
-| `kiloframe localset set-default <name>` | Set active server |
-| `kiloframe localset set-model <server> <model>` | Set model per server |
+| `kiloframe localset default <name>` | Set active server |
+
+`local select <model>` only selects a model that the active server has actually
+reported as downloaded. It never claims that a remote model exists locally.
 
 ## Service Commands
 
@@ -41,6 +43,31 @@
 | `kiloframe stop` | Stop daemon |
 | `kiloframe restart` | Restart daemon |
 | `kiloframe logs [-n LINES]` | Show service logs |
+
+## Interactive slash commands
+
+`/commands` is the complete in-app command list; `/help` adds short usage notes.
+The full TUI also accepts direct forms:
+
+```text
+/local status
+/local models
+/local ps
+/local pull <model>
+/local select <model>
+/local unload [model]
+/localset list
+/localset add <name> <http(s)://host:11434>
+/localset remove <name>
+/localset default <name>
+/thinking off|on|low|medium|high
+```
+
+`/thinking` is enabled only when the active Ollama model advertises the `thinking`
+capability. Models whose API advertises only generic thinking expose `on`/`off`; effort
+levels are offered only for model families with a documented level control. Cloud
+providers are not presented as supporting it without a verified provider-specific
+control.
 
 ## CLI Help
 

@@ -40,24 +40,46 @@ def _duration(seconds: int | float) -> str:
     return " ".join(parts)
 
 
+def _systemd_available() -> bool:
+    """Whether systemctl can actually control a running systemd instance."""
+    if not os.path.isdir("/run/systemd/system"):
+        return False
+    return subprocess.run(
+        ["systemctl", "show-environment"], stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL, check=False,
+    ).returncode == 0
+
+
+def daemon_start_hint() -> str:
+    """Give an executable recovery command, including for containers without systemd."""
+    if _systemd_available():
+        return "sudo systemctl start kiloframe"
+    return "sudo -u kiloframe env PYTHONPATH=/opt/kiloframe/app/src python3 -m kiloframe.daemon"
+
+
 def print_status(status: dict[str, Any] | None) -> None:
     """Pretty-print the daemon status."""
     if status is None:
         print("KILOFRAME STATUS")
         print("STATE        STOPPED")
         print("daemon       INACTIVE")
+        print(f"start        {daemon_start_hint()}")
         return
 
-    state = "READY" if status.get("running") and status.get("healthy") else "BUSY"
+    model = str(status.get("model") or "").strip()
+    state = "READY" if status.get("running") and status.get("healthy") and model else "STARTING"
     if not status.get("running"):
         state = "STOPPED"
     elif not status.get("healthy"):
         state = "UNHEALTHY"
+    elif not model:
+        state = "MODEL REQUIRED"
 
     print("KILOFRAME STATUS")
     print(f"STATE        {state}")
     print(f"daemon       {'ACTIVE' if status.get('running') else 'INACTIVE'}  pid {status.get('pid', '?')}")
-    print(f"brain        {'HEALTHY' if status.get('healthy') else 'UNHEALTHY'}  {status.get('model', '?')}")
+    print(f"ollama       {'REACHABLE' if status.get('healthy') else 'UNREACHABLE'}  {status.get('server') or 'not configured'}")
+    print(f"model        {model or 'none selected'}")
     print(f"uptime       {_duration(status.get('uptime_seconds', 0))}")
     mem = status.get("profile", {})
     total = (mem or {}).get("total_mb", 0)
@@ -66,6 +88,17 @@ def print_status(status: dict[str, Any] | None) -> None:
     meminfo = status.get("memory", {})
     if meminfo:
         print(f"memory       {meminfo.get('facts', '?')} facts · {meminfo.get('skills', '?')} skills · {meminfo.get('sessions', '?')} sessions")
+    start_hint = daemon_start_hint()
+    restart_hint = "sudo systemctl restart kiloframe" if _systemd_available() else (
+        "stop the manual daemon, then run the start command below"
+    )
+    if not status.get("healthy"):
+        print(f"recovery     check the configured Ollama server, then: {restart_hint}")
+    elif not model:
+        print("next step    select a downloaded model: kiloframe local models; kiloframe local select <model>")
+    else:
+        print(f"control      {restart_hint}  ·  kiloframe logs  ·  kiloframe doctor")
+    print(f"start        {start_hint}")
 
 
 def runtime_summary(data: dict[str, Any]) -> dict[str, Any]:
@@ -85,6 +118,10 @@ def runtime_summary(data: dict[str, Any]) -> dict[str, Any]:
 
 
 def service_action(action: str) -> int:
+    if not _systemd_available():
+        print(f"KiloFrame cannot {action} itself because systemd is not running.", file=sys.stderr)
+        print(f"Manual start: {daemon_start_hint()}", file=sys.stderr)
+        return 2
     command = ["systemctl", action, "kiloframe.service"]
     if os.geteuid() != 0:
         command.insert(0, "sudo")
@@ -211,6 +248,9 @@ async def local_command(args: argparse.Namespace, client: RPCClient) -> int:
             json_print(status)
         elif action == "models":
             models = await client.request("ollama_models")
+            if isinstance(models, dict):
+                print(f"{YELLOW}{models.get('error', 'could not list models')}{RESET}", file=sys.stderr)
+                return 1
             if not models:
                 print(f"{DIM}no models downloaded on this server{RESET}")
                 return 0
@@ -221,6 +261,9 @@ async def local_command(args: argparse.Namespace, client: RPCClient) -> int:
                 print(f"{GREEN}{m.get('name')}{RESET}  {size} MiB{extra}")
         elif action == "ps":
             running = await client.request("ollama_running")
+            if isinstance(running, dict):
+                print(f"{YELLOW}{running.get('error', 'could not list running models')}{RESET}", file=sys.stderr)
+                return 1
             if not running:
                 print(f"{DIM}no models currently running{RESET}")
                 return 0
@@ -257,7 +300,7 @@ async def local_command(args: argparse.Namespace, client: RPCClient) -> int:
                 print(f"{YELLOW}{data.get('error', 'could not unload')}{RESET}")
                 return 1
     except (FileNotFoundError, ConnectionError, OSError) as exc:
-        print(f"{YELLOW}KiloFrame daemon is not running.{RESET} Try: sudo systemctl start kiloframe", file=sys.stderr)
+        print(f"{YELLOW}KiloFrame daemon is not running.{RESET} Start it: {daemon_start_hint()}", file=sys.stderr)
         return 2
     except KiloFrameError as exc:
         print(f"{YELLOW}error:{RESET} {exc}", file=sys.stderr)
@@ -300,7 +343,7 @@ async def localset_command(args: argparse.Namespace, client: RPCClient) -> int:
                 print(f"{YELLOW}{data.get('error', 'could not set default')}{RESET}")
                 return 1
     except (FileNotFoundError, ConnectionError, OSError) as exc:
-        print(f"{YELLOW}KiloFrame daemon is not running.{RESET} Try: sudo systemctl start kiloframe", file=sys.stderr)
+        print(f"{YELLOW}KiloFrame daemon is not running.{RESET} Start it: {daemon_start_hint()}", file=sys.stderr)
         return 2
     except KiloFrameError as exc:
         print(f"{YELLOW}error:{RESET} {exc}", file=sys.stderr)
@@ -323,7 +366,7 @@ async def async_main(args: argparse.Namespace, settings: Settings) -> int:
         await TerminalUI(client).run()
         return 0
     if args.command == "chat":
-        await TerminalUI(client).ask(" ".join(args.text))
+        return 0 if await TerminalUI(client).ask(" ".join(args.text)) else 1
     elif args.command == "status":
         print_status(await client.request("status"))
     elif args.command == "resources":
@@ -386,7 +429,7 @@ def main() -> None:
         if args.command == "status":
             print_status(None)
             raise SystemExit(2) from None
-        print(f"{YELLOW}KiloFrame daemon is not running.{RESET} Try: sudo systemctl start kiloframe", file=sys.stderr)
+        print(f"{YELLOW}KiloFrame daemon is not running.{RESET} Start it: {daemon_start_hint()}", file=sys.stderr)
         raise SystemExit(2) from None
     except KiloFrameError as exc:
         print(f"{YELLOW}KiloFrame error:{RESET} {exc}", file=sys.stderr)

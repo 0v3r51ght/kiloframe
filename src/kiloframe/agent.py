@@ -475,7 +475,7 @@ class Agent:
             # /thinking forwards a native thinking level to Ollama (which applies it only
             # to thinking-capable models). Cloud providers ignore it; their budget comes
             # from ``effort`` above.
-            if thinking in {"low", "medium", "high", "max"} and escalated is None:
+            if thinking in {"on", "low", "medium", "high"} and escalated is None:
                 payload["think"] = thinking
             if tool_schemas:
                 payload["tools"] = tool_schemas
