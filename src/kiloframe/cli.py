@@ -60,8 +60,8 @@ def print_status(status: dict[str, Any] | None) -> None:
     print(f"brain        {'HEALTHY' if status.get('healthy') else 'UNHEALTHY'}  {status.get('model', '?')}")
     print(f"uptime       {_duration(status.get('uptime_seconds', 0))}")
     mem = status.get("profile", {})
-    total = mem.get("total_mb", 0)
-    avail = mem.get("available_mb", 0)
+    total = (mem or {}).get("total_mb", 0)
+    avail = (mem or {}).get("available_mb", 0)
     print(f"memory       {total} MiB total · {avail} MiB available")
     meminfo = status.get("memory", {})
     if meminfo:
