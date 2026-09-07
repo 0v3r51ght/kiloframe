@@ -28,11 +28,11 @@ Developed by Citadel Research
 ```bash
 # Production (stable)
 sudo apt install -y curl
-curl -fsSL https://raw.githubusercontent.com/citadelconsortium/kiloframe/main/scripts/install-online.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/0v3r51ght/kiloframe/main/scripts/install-online.sh | sudo bash
 kiloframe
 
 # From a working tree
-git clone https://github.com/citadelconsortium/kiloframe
+git clone https://github.com/0v3r51ght/kiloframe
 cd kiloframe
 sudo ./scripts/install.sh
 kiloframe
@@ -42,7 +42,7 @@ The installer provisions Python, `prompt_toolkit`, `pygments`, the `kiloframe` s
 
 ```text
 # Optional: verify the installer
-curl -fsSL https://raw.githubusercontent.com/citadelconsortium/kiloframe/main/scripts/install-online.sh -o install-online.sh
+curl -fsSL https://raw.githubusercontent.com/0v3r51ght/kiloframe/main/scripts/install-online.sh -o install-online.sh
 sha256sum install-online.sh
 # Compare against the SHA-256 advertised on the release page.
 ```

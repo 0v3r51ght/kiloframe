@@ -2,8 +2,8 @@
 set -euo pipefail
 
 # One-line installer entry point:
-# curl -fsSL https://raw.githubusercontent.com/citadelconsortium/kiloframe/main/scripts/install-online.sh | bash
-REPO_URL="${KILOFRAME_REPO_URL:-https://github.com/citadelconsortium/kiloframe}"
+# curl -fsSL https://raw.githubusercontent.com/0v3r51ght/kiloframe/main/scripts/install-online.sh | bash
+REPO_URL="${KILOFRAME_REPO_URL:-https://github.com/0v3r51ght/kiloframe}"
 BRANCH="${KILOFRAME_BRANCH:-main}"
 # Must match install.sh: the service account, not the person running the installer.
 # Using the login user here left the service running as one account with its data

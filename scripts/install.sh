@@ -29,7 +29,7 @@ if [[ -z "$ROOT" || ! -f "$ROOT/src/kiloframe/__init__.py" ]]; then
     fi
     DEST="/opt/kiloframe"
     rm -rf "$DEST"
-    git clone --depth 1 https://github.com/citadelconsortium/kiloframe "$DEST"
+    git clone --depth 1 https://github.com/0v3r51ght/kiloframe "$DEST"
     exec bash "$DEST/scripts/install.sh" "$@"
 fi
 
