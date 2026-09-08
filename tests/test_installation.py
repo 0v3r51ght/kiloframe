@@ -42,6 +42,8 @@ class InstallationTests(unittest.TestCase):
         script = (Path(__file__).parents[1] / "scripts" / "install-online.sh").read_text()
         self.assertIn("0v3r51ght/kiloframe", script)
         self.assertNotIn("0v3r51ght/kiloframe-framework", script)
+        self.assertIn("/usr/local/bin/kiloframe restart", script)
+        self.assertIn("/usr/local/bin/kiloframe status", script)
 
     def test_installer_seeds_a_default_ollama_server(self):
         install = (Path(__file__).parents[1] / "scripts" / "install.sh").read_text()

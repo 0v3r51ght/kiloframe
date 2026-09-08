@@ -19,6 +19,11 @@ cd kiloframe
 sudo ./scripts/install.sh
 ```
 
+The one-line method downloads the current `main` archive, performs the real installation,
+starts or restarts KiloFrame on systemd and non-systemd hosts, and prints live status
+before returning. A failed download, installation, service action, or status check makes
+the command return nonzero.
+
 ## Verify Installation
 
 ```bash

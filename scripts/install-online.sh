@@ -23,6 +23,7 @@ sudo KILOFRAME_USER="$OWNER" "$ROOT/scripts/install.sh"
 if command -v systemctl >/dev/null && systemctl show-environment >/dev/null 2>&1; then
   sudo systemctl restart kiloframe.service
 else
-  echo "systemd is not operational; start the daemon with the manual command printed by the installer."
+  sudo /usr/local/bin/kiloframe restart
 fi
+sudo /usr/local/bin/kiloframe status
 echo "KiloFrame installed. Run: kiloframe (then /local to add an Ollama server or /cloud for hosted models)"

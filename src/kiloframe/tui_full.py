@@ -424,9 +424,9 @@ class KiloApp:
             line = info[i] if inline_info and i < len(info) else []
             rows += line
             rows.append(("", "\n"))
-        # Centered credit line under the wordmark, per the KiloFrame identity.
-        credit_pad = max(0, (self._cw() - len(KILOFRAME_CREDIT)) // 2)
-        rows.append(("class:tagline", " " * credit_pad + KILOFRAME_CREDIT))
+        # Align the credit with the left edge of the block wordmark. Centering it in
+        # the entire conversation pane made it drift awkwardly as the sidebar changed.
+        rows.append(("class:tagline", "  " + KILOFRAME_CREDIT))
         rows.append(("", "\n"))
         return rows
 

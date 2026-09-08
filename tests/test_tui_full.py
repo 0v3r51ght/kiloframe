@@ -66,6 +66,12 @@ class FullTUIDirectChatTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("██╗", text)
         self.assertNotIn("KILOFRAME  ", text)
 
+    def test_credit_is_aligned_to_the_left_edge_of_the_wordmark(self):
+        app = KiloApp(SimpleNamespace(socket_path=Path("/tmp/in-memory.sock")))
+        with patch("shutil.get_terminal_size", return_value=SimpleNamespace(columns=120, lines=36)):
+            lines = "".join(value for _style, value in app._banner_text()).splitlines()
+        self.assertEqual(lines[-1], "  Developed by Citadel Research")
+
     def test_unloaded_selected_model_is_not_labelled_ready(self):
         app = KiloApp(SimpleNamespace(socket_path=Path("/tmp/in-memory.sock")))
         app.status = {"healthy": True, "model": "small:latest"}

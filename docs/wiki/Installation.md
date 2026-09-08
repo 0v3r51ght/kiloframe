@@ -12,6 +12,9 @@
 curl -fsSL https://raw.githubusercontent.com/0v3r51ght/kiloframe/main/scripts/install-online.sh | sudo bash
 ```
 
+This downloads `main`, installs it, starts or restarts the daemon on systemd and
+non-systemd hosts, and prints live status. Any failed stage returns a nonzero exit code.
+
 Or install a checkout:
 
 ```bash
