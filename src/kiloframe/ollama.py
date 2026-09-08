@@ -211,14 +211,14 @@ class OllamaClient:
         except urllib.error.URLError as exc:
             raise OllamaError(f"Ollama server unreachable at {self.url}: {exc.reason}") from exc
 
-    def _post(self, path: str, data: dict[str, Any]) -> dict[str, Any]:
+    def _post(self, path: str, data: dict[str, Any], timeout: int | None = None) -> dict[str, Any]:
         req = urllib.request.Request(
             self.url + path,
             data=json.dumps(data).encode(),
             headers={"Content-Type": "application/json", "User-Agent": USER_AGENT},
         )
         try:
-            with urllib.request.urlopen(req, timeout=self.timeout) as r:
+            with urllib.request.urlopen(req, timeout=timeout or self.timeout) as r:
                 return json.load(r)
         except urllib.error.HTTPError as exc:
             detail = ""
@@ -308,12 +308,14 @@ class OllamaClient:
 
     def load(self, model: str, keep_alive: str = "5m") -> None:
         """Ask Ollama to preload a downloaded model without generating an answer."""
+        # Loading multi-gigabyte models can take substantially longer than a normal
+        # status or inference request on a remote/CPU-only Ollama host.
         self._post("/api/generate", {
             "model": model,
             "prompt": "",
             "stream": False,
             "keep_alive": keep_alive,
-        })
+        }, timeout=max(self.timeout, 180))
 
     async def chat_stream(
         self,

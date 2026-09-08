@@ -680,7 +680,10 @@ class KiloApp:
 
     def _choice_text(self):
         start = max(0, self._choice_index - 6)
-        rows = [("class:dim", "  ↑/↓ select · Enter apply · Esc cancel\n")]
+        hint = "  ↑/↓ select · Enter apply · Esc cancel\n"
+        if (self._pending or {}).get("kind") == "cloud_pick":
+            hint = "  ↑/↓ select · Enter apply · type a provider name + Enter to search · Esc cancel\n"
+        rows = [("class:dim", hint)]
         for i in range(start, min(start + 8, len(self._choice_options))):
             label = self._choice_options[i][1]
             selected = i == self._choice_index
@@ -1080,8 +1083,9 @@ class KiloApp:
         configured = set(data.get("configured", []))
         self._append("\n☁ choose a cloud provider below. Type part of its name and press Enter to filter; use ↑/↓ and Enter to select.\n")
         self._pending = {"kind": "cloud_pick", "question": pending_question, "force_key": force_key}
-        self._choose("Cloud provider", [(name, meta["label"] + (" ✓ configured" if name in configured else ""))
-                     for name, meta in self._cloud_options], "cloud_pick", question=pending_question, force_key=force_key)
+        self._choose("Cloud provider", [("__search__", "Search provider catalog…"),
+                     *[(name, meta["label"] + (" ✓ configured" if name in configured else ""))
+                       for name, meta in self._cloud_options]], "cloud_pick", question=pending_question, force_key=force_key)
 
     def _run_cloud(self, name: str, question: str | None) -> None:
         """Activate a configured provider and, if a question was queued, send it now."""
@@ -1248,6 +1252,11 @@ class KiloApp:
             await self._model_cmd(name)
             return
         if kind == "cloud_pick":
+            if text.strip() == "__search__":
+                self._append("\n☁ search provider catalog:\n")
+                self._pending = {"kind": "cloud_search", "question": pending.get("question"),
+                                 "force_key": pending.get("force_key")}
+                return
             name = None
             choices = self._choice_options or [(n, meta.get("label", n)) for n, meta in self._cloud_options]
             names = [n for n, _ in choices]
@@ -1280,6 +1289,20 @@ class KiloApp:
             else:
                 self._append(f"\n☁ paste your {name} API key and press Enter:\n")
                 self._pending = {"kind": "cloud_key", "name": name, "question": pending.get("question")}
+            return
+        if kind == "cloud_search":
+            query = text.strip().lower()
+            matches = [(provider, meta) for provider, meta in self._cloud_options
+                       if query and (query in provider or query in str(meta.get("label", "")).lower())]
+            if not matches:
+                self._append("\n— no provider matches; try another name —\n")
+                self._pending = {"kind": "cloud_search", "question": pending.get("question"),
+                                 "force_key": pending.get("force_key")}
+                return
+            configured = set(self._catalog.get("configured", []))
+            self._append(f"\n— {len(matches)} provider match{'es' if len(matches) != 1 else ''} for {query!r} —\n")
+            self._choose("Cloud provider", [(provider, meta["label"] + (" ✓ configured" if provider in configured else ""))
+                for provider, meta in matches], "cloud_pick", question=pending.get("question"), force_key=pending.get("force_key"))
             return
         if kind == "cloud_custom_name":
             name = text.strip().lower()
