@@ -34,7 +34,8 @@ class CloudFlowTests(unittest.IsolatedAsyncioTestCase):
         app = KiloApp(FakeClient())
         await app._cloud_setup(pending_question=None)
         self.assertEqual(app._pending["kind"], "cloud_pick")
-        self.assertEqual(len(app._cloud_options), 2)
+        self.assertEqual(len(app._cloud_options), 3)
+        self.assertEqual(app._cloud_options[-1][0], "custom")
         await app._resume_pending("2")  # groq
         self.assertEqual(app._pending["kind"], "cloud_key")
         self.assertEqual(app._pending["name"], "groq")
