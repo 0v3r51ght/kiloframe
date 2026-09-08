@@ -144,6 +144,14 @@ Exa, GitHub MCP, and Firecrawl are disabled in the default MCP file. This is int
 until their external credentials and service details are configured. Their absence must
 not be diagnosed as a failed core installation.
 
+## Telegram bot does not answer
+
+With a configured token and an empty allow-list, the bridge deliberately enters safe pairing
+mode. Send `/start` to the bot from the intended account; it replies with that account's chat
+ID and the `sudo kiloframe telegram allow CHAT_ID` command. No ordinary chat or tool action is
+accepted before that explicit authorization. Check `kiloframe logs -n 200` for the pairing-mode
+startup line and `sudo kiloframe telegram status` for authorized chat IDs.
+
 ## Configuration damaged or invalid
 
 Back up before changing anything:

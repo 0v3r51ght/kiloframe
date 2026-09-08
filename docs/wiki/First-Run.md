@@ -62,7 +62,7 @@ Check all of the following as a human user:
 6. A normal prompt streams a response inside Kilo's box.
 7. Thinking/tool/recovery activity remains in that same box when it occurs.
 8. The sidebar reflects the route, model, context, sessions, and loaded models.
-9. `/new`, `/chats`, and `/kilochats` behave as documented.
+9. `/new`, `/chats`, and `/delete` behave as documented.
 10. `/quit` exits without stopping the daemon.
 
 ## 5. Confirm loaded state and restart

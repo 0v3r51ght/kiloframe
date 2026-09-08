@@ -772,7 +772,7 @@ class KiloApp:
         if text == "/new":
             self.session_id = None
             self.output.buffer.set_document(Document("", 0), bypass_readonly=True)
-            self._append("— new session · the previous chat is saved (use /kilochats to reopen it) —\n")
+            self._append("— new session · the previous chat is saved (use /chats to reopen it) —\n")
             return True
         if text == "/help":
             self._command_panel("Help", [
@@ -782,7 +782,7 @@ class KiloApp:
                 "/local [status|models|ps|pull|select|load|unload]",
                 "/localset [list|add|remove|default] configure Ollama servers",
                 "/switch · /cloud · /model            change route or cloud model",
-                "/chats · /chat · /delete             manage conversations",
+                "/chats · /delete                     manage conversations",
                 "/private [on|off|rotate] · /cancel · /new · /clear · /quit",
                 "F2 sidebar · Ctrl-C cancel · Ctrl-Q quit · /commands full reference",
             ])

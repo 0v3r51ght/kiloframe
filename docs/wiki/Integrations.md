@@ -51,7 +51,7 @@ concrete browser workflow on its target host.
 | Exa MCP | disabled | external API key required |
 | GitHub MCP | disabled | authentication required; not needed for local launch |
 | Firecrawl MCP | disabled | external credentials/service required |
-| Telegram | disabled | bot token and explicit chat allow-list required |
+| Telegram | safe pairing after token setup | bot token required; no chat can run agent actions until explicitly allowed |
 | Cloud providers | absent | provider API key required |
 
 The default MCP registry contains disabled entries so operators can configure them without
@@ -71,6 +71,10 @@ not make the endpoint active unless the operator selects it.
 - Outward/non-safe actions still require policy approval.
 - MCP tools are not exposed to remote Telegram callers.
 - One failed optional server is skipped and logged; core startup continues.
+- Built-in tool schemas remain available for every request.  Connected MCP schemas are
+  selected by request relevance (code requests can include Serena and documentation/API
+  requests can include Context7) so a large optional MCP catalog does not needlessly
+  increase local-model prompt prefill time.
 
 Use `/mcp` in the TUI for the live authoritative view. It lists every configured server
 as connected, disabled, failed, or not connected and lets you select connected servers to
@@ -89,3 +93,15 @@ sudo kiloframe restart
 Look for successful MCP initialization and a nonzero discovered-tool count in the daemon
 log. Rerun the installer to repair required packages. Configure credentials only in
 protected runtime configuration—never in the repository or Wiki.
+
+## Telegram pairing
+
+After storing a real bot token with `/botkey` or `sudo kiloframe telegram set-token`, the
+bridge starts even when no chat is yet allowed. This is **safe pairing mode**: a sender may
+use `/start` or `/id` and receives only their own chat ID and the exact administrator command
+needed to allow it. The bridge does not send prompts, invoke tools, or disclose status to
+that sender until an administrator runs `sudo kiloframe telegram allow CHAT_ID`.
+
+Use `sudo kiloframe telegram status` to review the allow-list. This requires a real incoming
+`/start` from the intended Telegram account; KiloFrame cannot infer a private Telegram chat ID
+without Telegram delivering an update.

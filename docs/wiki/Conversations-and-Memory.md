@@ -9,8 +9,7 @@ erase them.
 - A first normal prompt creates a session.
 - `/new` detaches the current TUI from that session so the next prompt creates another.
 - `/chats` lists recent terminal sessions with time, title, and message count.
-- `/kilochats` lists sessions and lets the next entered number open one.
-- `/chat N` resumes a session from the most recently displayed list.
+- `/chats N` resumes a session from the most recently displayed list.
 - `/delete` opens a selector; `/delete N`, `/delete N,M`, and `/delete all` remove selected
   sessions and their messages.
 

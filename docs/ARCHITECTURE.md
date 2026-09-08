@@ -90,7 +90,7 @@ KiloFrame stores full messages in SQLite but sends a bounded context to the mode
 turns are retained newest-first up to `max_history_tokens`; older turns become a compact,
 role-labelled record. When this occurs the daemon emits a `compaction` event and the TUI
 reports the number of earlier turns compacted. `/new` starts a separate session; `/chats`
-and `/kilochats` allow an existing one to be resumed.
+and `/chats N` allow an existing one to be resumed.
 
 Tool output is budgeted separately. Oversized structured or text results retain their
 head, tail, exit status, and useful surrounding structure while explicitly saying what

@@ -111,8 +111,7 @@ connection. `/thinking` does not claim cloud support without a verified control.
 ### Sessions
 
 - `/chats` — list recent sessions.
-- `/kilochats` — list and arm number selection.
-- `/chat N` — resume a listed session.
+- `/chats N` — resume a listed session.
 - `/delete`, `/delete N`, `/delete N,M`, `/delete all` — delete chosen history.
 
 Conversation compaction is automatic and visible. Persistent history remains in SQLite;

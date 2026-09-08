@@ -121,8 +121,7 @@ than sent directly.
 | Command | Effect |
 |---|---|
 | `/chats` | list recent terminal sessions |
-| `/kilochats` | list sessions and arm number-to-open selection |
-| `/chat N` | resume a listed session |
+| `/chats N` | resume a listed session |
 | `/delete` | open the deletion selector |
 | `/delete N` or `/delete N,M` | delete selected listed sessions |
 | `/delete all` | delete all sessions shown by the selector |
