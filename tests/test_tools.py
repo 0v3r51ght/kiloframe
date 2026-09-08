@@ -61,16 +61,16 @@ class ToolTests(unittest.IsolatedAsyncioTestCase):
                 ToolContext(self.session, Path(self.tmp.name), remote=True),
             )
 
-    async def test_tool_schemas_are_stable_across_requests(self):
-        """Tools render into the cacheable prompt prefix, so the set must not vary with
-        the request text; varying it forces a full prompt reprocess on every message."""
+    async def test_tool_schemas_are_task_relevant_for_fast_local_inference(self):
         baseline = self.tools.schemas()
         self.assertTrue(baseline)
-        for request in ("Reply with exactly: ready", "Inspect this machine CPU", "Search the web for Arch Linux"):
-            self.assertEqual(self.tools.schemas(request=request), baseline)
-        # Allow-listed Telegram receives the same built-ins; mutation is approval-gated.
+        self.assertEqual(self.tools.schemas(request="Reply with exactly: ready"), [])
+        names = {item["function"]["name"] for item in self.tools.schemas(request="Inspect this machine CPU")}
+        self.assertEqual(names, {"system_info"})
+        names = {item["function"]["name"] for item in self.tools.schemas(request="Search the web for Arch Linux")}
+        self.assertEqual(names, {"web_search"})
+        # Remote task selection obeys the same approval-gated execution boundary.
         remote = self.tools.schemas(remote=True)
-        self.assertEqual(self.tools.schemas(remote=True, request="Search the web for Arch Linux"), remote)
         self.assertEqual(remote, baseline)
 
     async def test_memory_tools(self):

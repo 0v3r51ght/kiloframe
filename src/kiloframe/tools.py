@@ -154,19 +154,30 @@ class ToolRegistry:
     def schemas(
         self, remote: bool = False, request: str | None = None
     ) -> list[dict[str, Any]]:
-        """Return built-ins plus only MCP schemas relevant to a live request.
+        """Return only the tools that the current task can plausibly require.
 
-        A full Serena+Context7 catalogue is large enough to dominate prompt prefill on
-        small local models and makes ordinary conversation needlessly slow. Built-in
-        tools stay available; connected MCP tools are advertised for explicit MCP work,
-        code/project work (Serena), or library/API/documentation work (Context7).
-        Calling this without a request preserves the complete inventory for inspection.
+        Sending a whole tool registry with a greeting turns prompt prefill into the
+        dominant cost on CPU-only or small-device Ollama servers.  Inventory calls keep
+        every built-in visible; live requests expose a focused, valid subset.
         """
         text = (request or "").lower()
-        # Built-ins remain stable and reliable for every request. The expensive part is
-        # the external MCP catalogue (especially semantic-code server schemas), so only
-        # that catalogue is selected by request intent.
-        schemas = [tool.openai_schema() for tool in self._tools.values()]
+        if not request:
+            schemas = [tool.openai_schema() for tool in self._tools.values()]
+        else:
+            selected: set[str] = set()
+            if any(term in text for term in ("file", "folder", "directory", "repo", "repository", "source", "read ", "grep", "search code")):
+                selected.update({"read_file", "list_files", "search_files"})
+            if any(term in text for term in ("write", "create file", "edit", "modify", "save ", "command", "run ", "install", "test", "build")):
+                selected.update({"write_file", "run_command"})
+            if any(term in text for term in ("cpu", "memory", "disk", "system", "machine", "hardware", "uptime")):
+                selected.add("system_info")
+            if any(term in text for term in ("search web", "search the web", "research", "latest", "news", "look up", "find online", "internet")):
+                selected.add("web_search")
+            if any(term in text for term in ("http://", "https://", "web page", "fetch", "url")):
+                selected.add("web_fetch")
+            if any(term in text for term in ("remember", "preference", "recall", "history", "skill")):
+                selected.update({"remember", "recall", "search_history", "list_skills", "save_skill"})
+            schemas = [tool.openai_schema() for name, tool in self._tools.items() if name in selected]
         # Tools published by MCP servers are external code; remote callers never get them.
         if self.mcp is not None and not remote:
             mcp_schemas = self.mcp.schemas()

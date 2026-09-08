@@ -366,7 +366,7 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
             agent = Agent(settings, runtime, memory, tools)  # type: ignore[arg-type]
             events = [event async for event in agent.run("Reply with exactly: ready")]
             self.assertEqual("".join(e.get("text", "") for e in events), "Sir, ready, Sir.")
-            self.assertEqual(runtime.payload["tools"], tools.schemas())
+            self.assertNotIn("tools", runtime.payload)
             memory.close()
 
     async def test_duplicate_tool_call_is_blocked_without_disabling_other_tools(self):
