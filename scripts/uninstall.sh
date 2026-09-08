@@ -20,7 +20,13 @@ if has_systemd; then
     rm -f /etc/systemd/system/kiloframe.service
     systemctl daemon-reload
 else
-    echo "systemd is not operational; stop any manually launched KiloFrame daemon first."
+    if [[ -x /usr/local/bin/kiloframe ]]; then
+        echo "Stopping the detached KiloFrame daemon..."
+        /usr/local/bin/kiloframe stop
+    elif [[ -f /run/kiloframe/kiloframe.pid ]]; then
+        echo "KiloFrame is running but its control command is missing; refusing unsafe removal." >&2
+        exit 1
+    fi
 fi
 
 echo "Removing KiloFrame user and groups..."

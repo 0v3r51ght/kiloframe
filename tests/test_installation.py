@@ -20,6 +20,13 @@ class InstallationTests(unittest.TestCase):
             text = (scripts / name).read_text()
             self.assertIn("systemctl show-environment", text, name)
 
+    def test_non_systemd_uninstaller_stops_daemon_before_removal(self):
+        text = (Path(__file__).parents[1] / "scripts" / "uninstall.sh").read_text()
+        stop = text.index("/usr/local/bin/kiloframe stop")
+        remove = text.index("rm -rf /opt/kiloframe")
+        self.assertLess(stop, remove)
+        self.assertIn("refusing unsafe removal", text)
+
     def test_installers_agree_on_the_service_account(self):
         """The unit hardcodes a user while the installers choose one. If they disagree,
         the service runs as one account with its data owned by another and every write
