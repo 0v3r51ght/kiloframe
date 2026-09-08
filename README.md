@@ -36,9 +36,12 @@ rootless daemon on systemd and non-systemd hosts. Use `kiloframe status` to conf
 same daemon/socket is visible to the normal client.
 
 Inside KiloFrame, use `/localset` for a guided Ollama URL setup, `/mcp` to see every MCP
-server and discovered tool, and `/commands` for the canonical command list. Commands
-with choices use arrow-key selection and Enter; text is requested only for values such as
-an endpoint, model name, or API key.
+server and discovered tool, and `/commands` for the canonical command list. `/switch`
+uses the saved default cloud provider automatically, even in a newly opened TUI;
+the next `/switch` returns to Ollama. `/cloud` accepts a provider-name fragment to filter
+the catalog, and `/local` can preload a downloaded model before the first prompt.
+Commands with choices use arrow-key selection and Enter; text is requested only for
+values such as an endpoint, model name, or API key.
 
 ## Install
 

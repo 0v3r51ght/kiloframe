@@ -8,6 +8,11 @@ menus. `/localset`, `/cloud`, `/model`, `/agent`, `/effort`, `/thinking`, `/priv
 `/chats`, and `/mcp` use selection first and only ask for free text when an address,
 credential, custom model, or other value is genuinely required.
 
+When `/cloud` is open, type a fragment such as `groq`, `nvidia`, or `kimi` and press
+Enter to filter the catalog, then use the normal arrow-key selection. `/switch` activates
+the persisted configured cloud provider even after reopening KiloFrame; the next
+`/switch` returns to Ollama.
+
 ## Shell CLI
 
 | Command | Purpose |
@@ -31,6 +36,7 @@ kiloframe local models
 kiloframe local ps
 kiloframe local pull MODEL
 kiloframe local select MODEL
+kiloframe local load [MODEL]
 kiloframe local unload [MODEL]
 kiloframe localset [list]
 kiloframe localset add NAME URL

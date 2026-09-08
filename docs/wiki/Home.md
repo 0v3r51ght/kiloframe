@@ -15,6 +15,10 @@ and conversation compaction appear live inside Kilo's response box.
 - Run `kiloframe` as the normal user. It connects to the same rootless daemon as the
   administrative command; sudo is only needed for service lifecycle operations.
 - `/localset` is a guided, selectable setup flow for local or remote Ollama endpoints.
+- `/switch` immediately activates the last configured cloud provider on a fresh TUI,
+  then switches back to Ollama on the next use.
+- `/cloud` accepts a provider-name fragment to filter the selectable provider catalog.
+- `/local` can select, preload, unload, pull, and inspect models without leaving the TUI.
 - `/mcp` shows the daemon's live MCP inventory, including connected, disabled, and failed
   servers plus their discovered tool counts.
 - The output scrollbar responds to click, drag, wheel, PageUp/PageDown, and keeps the

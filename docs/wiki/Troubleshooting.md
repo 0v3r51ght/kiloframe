@@ -68,6 +68,19 @@ and disabled entries. A connected entry lists its discovered tool count; a faile
 shows failure rather than pretending it is available. If a required server is not
 connected, inspect `kiloframe logs -n 200`, then run `sudo kiloframe restart`.
 
+## `/switch` says no cloud provider after reopening KiloFrame
+
+Update to the current release. `/switch` now asks the daemon for its persisted default
+provider when no provider is selected in the new TUI session, activates it immediately,
+and switches back to Ollama on the next invocation. If it still reports no configured
+provider, run `/cloud`, choose the provider, and complete its key/model setup first.
+
+## I want to load a downloaded Ollama model before asking a question
+
+Use `/local`, select **Load a model now**, and select a downloaded model. This sends a
+keep-alive preload request to the active Ollama server. Use `/local ps` to verify it is
+running; use `/local unload` when finished.
+
 ## Required integration unavailable
 
 ```bash
