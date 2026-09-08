@@ -60,12 +60,10 @@ class TelegramBridge:
         if not token or token == "PASTE_BOT_TOKEN_HERE":
             log.warning("telegram config has no bot token; staying disabled")
             return None
-        if not allowed:
-            log.warning(
-                "telegram config has an empty allowed_chat_ids; staying disabled"
-            )
-            return None
-        return {"token": token, "allowed": allowed}
+        # A valid token with no allow-list is pairing mode, not a dead bot. It may
+        # disclose only the sender's own chat id in response to /start or /id; it
+        # never runs an agent task or exposes status/tools until explicitly allowed.
+        return {"token": token, "allowed": allowed, "pairing": not bool(allowed)}
 
     # Shown under the message box by Telegram once registered with setMyCommands.
     COMMANDS = (
@@ -884,10 +882,8 @@ class TelegramBridge:
                     self.offset = 0
                     await self._publish_bot_ui(token)
                     published_token = token
-                    log.info(
-                        "telegram bridge enabled for %d authorised chat(s)",
-                        len(allowed),
-                    )
+                    log.info("telegram bridge %s for %d authorised chat(s)",
+                             "in pairing mode" if config.get("pairing") else "enabled", len(allowed))
                 try:
                     response = await asyncio.to_thread(
                         self._call,
@@ -936,10 +932,18 @@ class TelegramBridge:
                         if not text:
                             continue
                         if chat_id not in allowed:
-                            log.warning(
-                                "ignored telegram message from unauthorised chat %s",
-                                chat_id,
-                            )
+                            command = (text.strip().split() or [""])[0].lower()
+                            if config.get("pairing") and command in {"/start", "/id"}:
+                                await self.send(
+                                    token, chat_id,
+                                    "🔐 <b>KiloFrame pairing</b>\n"
+                                    f"Your Telegram chat id is <code>{chat_id}</code>.\n"
+                                    "On the KiloFrame host, run:\n"
+                                    f"<code>sudo kiloframe telegram allow {chat_id}</code>\n"
+                                    "Then send <code>/start</code> again.",
+                                )
+                            else:
+                                log.warning("ignored telegram message from unauthorised chat %s", chat_id)
                             continue
                         if text.startswith("/") and await self._command(
                             token, chat_id, text

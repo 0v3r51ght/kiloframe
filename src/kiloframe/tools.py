@@ -154,20 +154,28 @@ class ToolRegistry:
     def schemas(
         self, remote: bool = False, request: str | None = None
     ) -> list[dict[str, Any]]:
-        """Return a stable tool set.
+        """Return built-ins plus only MCP schemas relevant to a live request.
 
-        The list deliberately does not vary with the request text. Tools are rendered
-        into the prompt prefix, so selecting them per request changes that prefix and
-        destabilises the model-facing prefix, forcing unnecessary prompt reprocessing on
-        every message -- minutes of work on CPU-only hardware. A fixed set keeps the
-        prefix cacheable, and letting the model choose from all tools is also what the
-        agent design calls for.
+        A full Serena+Context7 catalogue is large enough to dominate prompt prefill on
+        small local models and makes ordinary conversation needlessly slow. Built-in
+        tools stay available; connected MCP tools are advertised for explicit MCP work,
+        code/project work (Serena), or library/API/documentation work (Context7).
+        Calling this without a request preserves the complete inventory for inspection.
         """
-        del request
+        text = (request or "").lower()
+        # Built-ins remain stable and reliable for every request. The expensive part is
+        # the external MCP catalogue (especially semantic-code server schemas), so only
+        # that catalogue is selected by request intent.
         schemas = [tool.openai_schema() for tool in self._tools.values()]
         # Tools published by MCP servers are external code; remote callers never get them.
         if self.mcp is not None and not remote:
-            schemas.extend(self.mcp.schemas())
+            mcp_schemas = self.mcp.schemas()
+            if not request or any(term in text for term in ("mcp", "tool", "serena", "context7")):
+                schemas.extend(mcp_schemas)
+            elif any(term in text for term in ("code", "repository", "repo", "project", "function", "class", "source", "file")):
+                schemas.extend(schema for schema in mcp_schemas if "__serena__" in schema["function"]["name"])
+            elif any(term in text for term in ("documentation", "docs", "api", "library", "framework", "package")):
+                schemas.extend(schema for schema in mcp_schemas if "__context7__" in schema["function"]["name"])
         return schemas
 
     async def execute(

@@ -19,10 +19,11 @@ def _config(raw: str, payload: dict) -> Path:
 
 
 class TelegramConfigTests(unittest.TestCase):
-    def test_disabled_without_allowlist(self):
+    def test_empty_allowlist_enters_safe_pairing_mode(self):
         with tempfile.TemporaryDirectory() as raw:
             path = _config(raw, {"token": "secret", "allowed_chat_ids": []})
-            self.assertIsNone(TelegramBridge(path, object()).config())  # type: ignore[arg-type]
+            config = TelegramBridge(path, object()).config()  # type: ignore[arg-type]
+            self.assertEqual(config, {"token": "secret", "allowed": set(), "pairing": True})
 
     def test_disabled_without_token(self):
         with tempfile.TemporaryDirectory() as raw:
