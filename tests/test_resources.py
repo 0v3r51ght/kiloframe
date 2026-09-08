@@ -45,6 +45,11 @@ class ResourceTests(unittest.TestCase):
             ), patch("kiloframe.resources._cgroup_available", return_value=available * MIB):
                 self.assertEqual(manager.live_headroom(), (expected, available))
 
+    def test_live_usage_reports_host_cpu_and_memory_fields(self):
+        usage = ResourceManager(Settings()).live_usage()
+        self.assertEqual(set(usage), {"cpu_percent", "memory_used_mb", "memory_total_mb", "memory_percent"})
+        self.assertGreaterEqual(usage["memory_total_mb"], usage["memory_used_mb"])
+
 
 if __name__ == "__main__":
     unittest.main()

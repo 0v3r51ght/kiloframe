@@ -489,12 +489,18 @@ class KiloApp:
 
     def _sidebar_text(self):
         mem = self.status.get("memory") or {}
+        host = self.status.get("host") or {}
         rows: list[tuple[str, str]] = [
             ("class:panel.title", " KILOFRAME\n\n"),
             ("class:panel.key", " model    "), ("class:panel.hi", f"{self.model_name}\n"),
             ("class:panel.key", " route    "), ("", f"{('cloud·' + self.cloud_provider) if self.cloud_active else (self.server_name or 'ollama')}\n"),
             ("class:panel.key", " thinking "), ("", f"{self.thinking if self.thinking != 'off' else 'auto'}\n"),
             ("class:panel.key", " effort   "), ("", f"{self.effort}\n\n"),
+
+            ("class:panel.title", " HOST · LIVE\n\n"),
+            ("class:panel.key", " cpu      "), ("class:on", f"{host.get('cpu_percent', '—')}%\n"),
+            ("class:panel.key", " memory   "), ("class:on", f"{host.get('memory_used_mb', '—')}/{host.get('memory_total_mb', '—')} MiB"),
+            ("class:dim", f" · {host.get('memory_percent', '—')}%\n\n"),
 
             ("class:panel.title", " TASKS\n\n"),
         ]

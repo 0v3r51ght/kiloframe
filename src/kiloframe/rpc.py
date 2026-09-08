@@ -77,6 +77,7 @@ class RPCServer:
                 status["mcp"] = mcp.info() if mcp else []
                 # Host capacity is runtime data, not invented model metadata.
                 status["profile"] = self.resources.profile().to_dict()
+                status["host"] = self.resources.live_usage()
                 await self._send(writer, {"type": "result", "data": status})
             elif command == "mcp_status":
                 mcp = getattr(self.agent.tools, "mcp", None)
