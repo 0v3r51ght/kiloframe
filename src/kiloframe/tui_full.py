@@ -1620,6 +1620,8 @@ class KiloApp:
             self._append(f"\n⚠ {data.get('error', 'could not select model')}\n")
 
     async def _local_load(self, model: str | None = None) -> None:
+        label = model or self.model_name or "selected model"
+        self._append(f"\n↻ loading {label} on the active Ollama server… this can take up to 3 minutes for a remote or CPU-only server.\n")
         try:
             data = await self.client.request("ollama_load", model=model or "")
         except (ConnectionError, FileNotFoundError, OSError) as exc:
