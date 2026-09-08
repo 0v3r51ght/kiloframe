@@ -141,7 +141,7 @@ _COMMANDS = [
     ("/thinking ", "off | on | low | medium | high — model-supported thinking control"),
     ("/effort ", "high | medium | low — reply depth vs speed"),
     ("/agent ", "force a specialist: orchestrator research coding security math engineering systems private"),
-    ("/local", "Ollama local/remote model route: status, models, pick, pull, unload"),
+    ("/local", "Ollama local/remote model route: status, models, pick, load, pull, unload"),
     ("/localset", "configure Ollama servers (add/remove/switch local or remote)"),
     ("/switch", "flip between Ollama and cloud (Ollama default)"),
     ("/private ", "on | off | rotate — mask web through Tor"),
@@ -776,7 +776,7 @@ class KiloApp:
                 "/thinking off|on|low|medium|high   model-supported thinking control",
                 "/effort high|medium|low             reply depth vs speed",
                 "/agent <name>|off                   select a specialist or restore auto",
-                "/local [status|models|ps|pull|select|unload]",
+                "/local [status|models|ps|pull|select|load|unload]",
                 "/localset [list|add|remove|default] configure Ollama servers",
                 "/switch · /cloud · /model            change route or cloud model",
                 "/chats · /chat · /delete             manage conversations",
@@ -864,13 +864,17 @@ class KiloApp:
                 self._spawn(self._local_select(value))
             elif action == "select":
                 self._spawn(self._local_models())
+            elif action == "load" and value:
+                self._spawn(self._local_load(value))
+            elif action == "load":
+                self._spawn(self._local_models(load_after_select=True))
             elif action == "pull":
                 self._append("\n— Model name to download:\n")
                 self._pending = {"kind": "local_pull"}
             elif action == "unload":
                 self._spawn(self._local_unload(value or None))
             else:
-                self._append("\n— /local [status|models|ps|pull <model>|select <model>|unload [model]] —\n")
+                self._append("\n— /local [status|models|ps|pull <model>|select <model>|load [model]|unload [model]] —\n")
             return True
         if text == "/local":
             self._spawn(self._local_menu())
@@ -918,13 +922,7 @@ class KiloApp:
             self._enqueue(rest, provider=self.cloud_provider)
             return True
         if text == "/switch":
-            if not self.cloud_provider:
-                self._append("\n— no cloud provider yet; run /cloud to set one up —\n")
-                return True
-            self.cloud_active = not self.cloud_active
-            where = f"cloud · {self.cloud_provider}" if self.cloud_active else "Ollama"
-            self._append(f"\n— switched to {where} —\n")
-            self._spawn(self._refresh_model_label())
+            self._spawn(self._switch_route())
             return True
         if text.startswith("/private"):
             arg = text[len("/private"):].strip().lower()
@@ -1102,6 +1100,28 @@ class KiloApp:
         if question:
             self._enqueue(question, provider=name)
 
+    async def _switch_route(self) -> None:
+        """Toggle routes, discovering the persisted cloud default on a fresh TUI."""
+        if self.cloud_active:
+            self.cloud_active = False
+            self._append("\n— switched to Ollama —\n")
+            await self._refresh_model_label()
+            return
+        if not self.cloud_provider:
+            try:
+                info = await self.client.request("provider_info")
+            except (ConnectionError, FileNotFoundError, OSError) as exc:
+                self._append(f"\n⚠ could not inspect cloud providers: {exc}\n")
+                return
+            default = str(info.get("default") or "").strip()
+            if not default:
+                self._append("\n— no configured cloud provider; run /cloud to set one up —\n")
+                return
+            self.cloud_provider = default
+        self.cloud_active = True
+        self._append(f"\n— switched to cloud · {self.cloud_provider} —\n")
+        await self._refresh_model_label()
+
     async def _resume_pending(self, text: str) -> None:
         pending = self._pending or {}
         self._pending = None
@@ -1169,6 +1189,17 @@ class KiloApp:
             else:
                 self._append("\n— cancelled —\n")
             return
+        if kind == "local_load":
+            name = None
+            if text.isdigit() and 1 <= int(text) <= len(self._ollama_models):
+                name = self._ollama_models[int(text) - 1].get("name")
+            elif text.strip():
+                name = text.strip()
+            if name:
+                await self._local_load(str(name))
+            else:
+                self._append("\n— cancelled —\n")
+            return
         if kind == "localset_menu":
             arg = text.strip().lower()
             if arg == "add":
@@ -1226,13 +1257,23 @@ class KiloApp:
             return
         if kind == "cloud_pick":
             name = None
-            names = [n for n, _ in self._cloud_options]
+            choices = self._choice_options or [(n, meta.get("label", n)) for n, meta in self._cloud_options]
+            names = [n for n, _ in choices]
             if text.isdigit() and 1 <= int(text) <= len(names):
                 name = names[int(text) - 1]
             elif text.strip().lower() in names:
                 name = text.strip().lower()
             if not name:
-                self._append("\n— cancelled cloud setup —\n")
+                query = text.strip().lower()
+                matches = [(provider, meta) for provider, meta in self._cloud_options
+                           if query and (query in provider or query in str(meta.get("label", "")).lower())]
+                if matches:
+                    configured = set(self._catalog.get("configured", []))
+                    self._append(f"\n— {len(matches)} provider match{'es' if len(matches) != 1 else ''} for {query!r} —\n")
+                    self._choose("Cloud provider", [(provider, meta["label"] + (" ✓ configured" if provider in configured else ""))
+                        for provider, meta in matches], "cloud_pick", question=pending.get("question"), force_key=pending.get("force_key"))
+                    return
+                self._append("\n— no provider matches; type part of a provider name or use /cloud again —\n")
                 return
             if name in set(self._catalog.get("configured", [])) and not pending.get("force_key"):
                 self._run_cloud(name, pending.get("question"))
@@ -1457,13 +1498,14 @@ class KiloApp:
             f"  m) list downloaded models\n"
             f"  p) list running models\n"
             f"  select) choose a model to use\n"
+            f"  load)   preload a selected/downloaded model\n"
             f"  pull)   download a model (e.g. llama3.2)\n"
             f"  u)      unload the selected model\n"
             f"  (blank cancels)\n"
         )
         self._pending = {"kind": "local_menu"}
         self._choose("Ollama", [("select", "Select a downloaded model"), ("m", "Downloaded models"),
-                     ("p", "Running models"), ("pull", "Download a model"), ("u", "Unload selected model")], "local_menu")
+                     ("p", "Running models"), ("load", "Load a model now"), ("pull", "Download a model"), ("u", "Unload selected model")], "local_menu")
 
     async def _local_status(self) -> None:
         try:
@@ -1482,7 +1524,7 @@ class KiloApp:
             f"  loaded     {len(status.get('running') or [])}\n"
         )
 
-    async def _local_models(self) -> None:
+    async def _local_models(self, load_after_select: bool = False) -> None:
         try:
             models = await self.client.request("ollama_models")
         except (ConnectionError, FileNotFoundError, OSError) as exc:
@@ -1504,7 +1546,7 @@ class KiloApp:
             lines.append(f"  {i:>2}. {m.get('name')}  {size} MiB  {extra}")
         self._append("\n".join(lines) + "\n")
         self._choose("Ollama model", [(str(i), str(m.get("name")))
-                     for i, m in enumerate(models, 1)], "local_select")
+                     for i, m in enumerate(models, 1)], "local_load" if load_after_select else "local_select")
 
     async def _local_running(self) -> None:
         try:
@@ -1571,6 +1613,19 @@ class KiloApp:
             self._spawn(self._refresh_model_label())
         else:
             self._append(f"\n⚠ {data.get('error', 'could not select model')}\n")
+
+    async def _local_load(self, model: str | None = None) -> None:
+        try:
+            data = await self.client.request("ollama_load", model=model or "")
+        except (ConnectionError, FileNotFoundError, OSError) as exc:
+            self._append(f"\n⚠ {exc}\n")
+            return
+        if data.get("ok"):
+            self._append(f"\n✓ loaded {data.get('model')}\n")
+            self._spawn(self._refresh_ollama_running())
+            self._spawn(self._refresh_model_label())
+        else:
+            self._append(f"\n⚠ {data.get('error', 'could not load model')}\n")
 
     async def _local_unload(self, model: str | None = None) -> None:
         try:

@@ -306,6 +306,15 @@ class OllamaClient:
     def unload(self, model: str) -> None:
         self._post("/api/generate", {"model": model, "keep_alive": 0})
 
+    def load(self, model: str, keep_alive: str = "5m") -> None:
+        """Ask Ollama to preload a downloaded model without generating an answer."""
+        self._post("/api/generate", {
+            "model": model,
+            "prompt": "",
+            "stream": False,
+            "keep_alive": keep_alive,
+        })
+
     async def chat_stream(
         self,
         model: str,

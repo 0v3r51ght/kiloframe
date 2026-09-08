@@ -10,6 +10,14 @@ from kiloframe.ollama import OllamaClient, OllamaConfig, OllamaError
 
 
 class OllamaProtocolTests(unittest.IsolatedAsyncioTestCase):
+    async def test_load_preloads_without_generating_text(self):
+        captured = []
+        def open_request(request, **kwargs):
+            captured.append(json.loads(request.data))
+            return io.BytesIO(b'{"done":true}\n')
+        with patch("urllib.request.urlopen", side_effect=open_request):
+            OllamaClient("http://localhost:11434").load("test-model")
+        self.assertEqual(captured[0], {"model": "test-model", "prompt": "", "stream": False, "keep_alive": "5m"})
     async def test_multiple_tool_calls_keep_distinct_indices(self):
         calls = [{"function": {"name": name, "arguments": {"path": name}}}
                  for name in ("read_file", "list_files")]

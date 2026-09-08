@@ -18,6 +18,24 @@ except ModuleNotFoundError as exc:
 
 @unittest.skipIf(KiloApp is None, "prompt_toolkit is not installed in the raw source-test environment")
 class FullTUIDirectChatTests(unittest.IsolatedAsyncioTestCase):
+    async def test_switch_uses_persisted_cloud_default_on_fresh_tui(self):
+        app = KiloApp(SimpleNamespace(socket_path=Path("/tmp/in-memory.sock")))
+        app.client.request = AsyncMock(side_effect=[
+            {"default": "groq"},
+            {"model": "llama", "server": "cloud", "state": "ready"},
+        ])
+        await app._switch_route()
+        self.assertTrue(app.cloud_active)
+        self.assertEqual(app.cloud_provider, "groq")
+        self.assertIn("switched to cloud · groq", app.output.buffer.text)
+
+    async def test_local_load_calls_dedicated_rpc(self):
+        app = KiloApp(SimpleNamespace(socket_path=Path("/tmp/in-memory.sock")))
+        app.client.request = AsyncMock(return_value={"ok": True, "model": "small:latest"})
+        app._spawn = lambda coroutine: coroutine.close()
+        await app._local_load("small:latest")
+        self.assertEqual(app.client.request.await_args.kwargs, {"model": "small:latest"})
+        self.assertIn("loaded small:latest", app.output.buffer.text)
     async def test_direct_local_select_accepts_number_from_displayed_model_list(self):
         app = KiloApp(SimpleNamespace(socket_path=Path("/tmp/in-memory.sock")))
         app.app = SimpleNamespace(invalidate=lambda: None)

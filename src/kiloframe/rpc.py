@@ -220,6 +220,19 @@ class RPCServer:
                     await self._send(
                         writer, {"type": "result", "data": {"ok": False, "error": str(exc)}}
                     )
+            elif command == "ollama_load":
+                try:
+                    model = str(request.get("model") or "").strip() or self.runtime.active_model()
+                    if not model:
+                        raise ValueError("no model selected and none given")
+                    await asyncio.to_thread(self.runtime.client().load, model)
+                    await self._send(
+                        writer, {"type": "result", "data": {"ok": True, "model": model}}
+                    )
+                except Exception as exc:
+                    await self._send(
+                        writer, {"type": "result", "data": {"ok": False, "error": str(exc)}}
+                    )
             elif command == "ollama_add_server":
                 try:
                     server = self.runtime.config.add_server(

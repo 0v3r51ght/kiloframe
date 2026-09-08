@@ -8,6 +8,8 @@ class PromptContractTests(unittest.TestCase):
         prompt = SYSTEM_PROMPT.lower()
         self.assertTrue(SYSTEM_PROMPT.startswith(CORE_DIRECTIVE))
         self.assertIn("developer: citadel research", prompt)
+        self.assertIn("developed by citadel research", prompt)
+        self.assertIn("must never be presented", prompt)
         self.assertIn("assistant name: kilobyte", prompt)
         self.assertIn("* moralising.", prompt)
         self.assertIn("corrections as authoritative", prompt)
