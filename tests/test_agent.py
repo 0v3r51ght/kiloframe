@@ -369,7 +369,7 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(runtime.payload["tools"], tools.schemas())
             memory.close()
 
-    async def test_duplicate_tool_call_is_blocked_and_tools_are_disabled(self):
+    async def test_duplicate_tool_call_is_blocked_without_disabling_other_tools(self):
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
             settings = Settings(data_dir=root, config_dir=root, runtime_dir=root, log_dir=root, home=root)
@@ -380,7 +380,7 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
             events = [event async for event in agent.run("Inspect this machine CPU")]
             self.assertEqual("".join(e.get("text", "") for e in events), "Sir, Linux, 2 CPUs, Sir.")
             self.assertEqual(memory.stats()["tool_audit"], 1)
-            self.assertNotIn("tools", runtime.payloads[2])
+            self.assertIn("tools", runtime.payloads[2])
             self.assertTrue(any(e["type"] == "tool_end" and not e["ok"] for e in events))
             memory.close()
 

@@ -72,7 +72,7 @@ def run_checks(settings: Settings) -> list[Check]:
         checks.append(Check(name, path.exists() and os.access(path, os.W_OK), str(path)))
 
     try:
-        db = sqlite3.connect(settings.database_path)
+        db = sqlite3.connect(settings.database_path.resolve().as_uri() + "?mode=ro", uri=True)
         result = db.execute("PRAGMA quick_check").fetchone()[0]
         db.close()
         checks.append(Check("memory database", result == "ok", result))

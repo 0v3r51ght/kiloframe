@@ -47,6 +47,7 @@ from prompt_toolkit.layout import (
 from prompt_toolkit.layout.controls import FormattedTextControl
 from prompt_toolkit.layout.menus import CompletionsMenu
 from prompt_toolkit.lexers import Lexer
+from prompt_toolkit.mouse_events import MouseEventType, MouseButton
 from prompt_toolkit.styles import Style
 from prompt_toolkit.widgets import TextArea
 
@@ -136,6 +137,7 @@ STYLE = Style.from_dict({
 _COMMANDS = [
     ("/commands", "show every TUI command"),
     ("/help", "show command help"),
+    ("/mcp", "inspect MCP server connections and discovered tools"),
     ("/thinking ", "off | on | low | medium | high — model-supported thinking control"),
     ("/effort ", "high | medium | low — reply depth vs speed"),
     ("/agent ", "force a specialist: orchestrator research coding security math engineering systems private"),
@@ -144,19 +146,14 @@ _COMMANDS = [
     ("/switch", "flip between Ollama and cloud (Ollama default)"),
     ("/private ", "on | off | rotate — mask web through Tor"),
     ("/cloud ", "set up or use a cloud model (provider picker)"),
-    ("/cloud key", "add or change a provider API key"),
     ("/model ", "change the cloud model"),
     ("/chats", "list past sessions to resume"),
-    ("/kilochats", "browse past chats; type a number to continue one"),
-    ("/chat ", "open a past chat by number"),
     ("/delete ", "delete chats you choose (n, n,m, or all)"),
     ("/botkey", "set or change the Telegram bot token"),
     ("/cancel", "stop the running request and clear the queue"),
     ("/new", "start a fresh session"),
     ("/clear", "clear the screen"),
     ("/quit", "exit KiloFrame"),
-    ("/exit", "exit KiloFrame (alias)"),
-    ("/q", "exit KiloFrame (alias)"),
 ]
 
 
@@ -165,6 +162,8 @@ class _ChatLexer(Lexer):
     tool lines, and code inside ``` fences."""
 
     def lex_document(self, document):
+        if getattr(self, "_cached_text", None) == document.text:
+            return self._cached_get_line
         lines = document.lines
 
         def box_body(line: str) -> tuple[str, str, str]:
@@ -173,21 +172,16 @@ class _ChatLexer(Lexer):
             end = -1 if suffix else None
             return prefix, line[len(prefix):end], suffix
 
-        def code_context(lineno: int) -> tuple[bool, str]:
-            in_code = False
-            language = "text"
-            for previous in lines[:lineno]:
-                _prefix, content, _suffix = box_body(previous)
-                fence = re.match(r"^\s*```([^\s`]*)", content)
-                if fence is None:
-                    continue
-                if in_code:
-                    in_code = False
-                    language = "text"
-                else:
-                    in_code = True
-                    language = fence.group(1) or "text"
-            return in_code, language
+        contexts = []
+        in_code, language = False, "text"
+        for previous in lines:
+            contexts.append((in_code, language))
+            fence = re.match(r"^\s*```([^\s`]*)", box_body(previous)[1])
+            if fence:
+                in_code = not in_code
+                language = (fence.group(1) or "text") if in_code else "text"
+
+        from functools import lru_cache
 
         def syntax_fragments(line: str, language: str):
             prefix, content, suffix = box_body(line)
@@ -212,6 +206,7 @@ class _ChatLexer(Lexer):
                 fragments.append(("class:box", suffix))
             return fragments
 
+        @lru_cache(maxsize=512)
         def get_line(lineno):
             line = lines[lineno]
             stripped = line.strip()
@@ -221,7 +216,7 @@ class _ChatLexer(Lexer):
                 return [(cls, line)]
             _prefix, body, _suffix = box_body(line)
             b = body.lstrip()
-            in_code, language = code_context(lineno)
+            in_code, language = contexts[lineno]
             if "\u26a0" in line or "destructive" in body.lower():
                 return [("class:diff.del", line)]
             if b.startswith("+") and not b.startswith("+++"):
@@ -236,6 +231,7 @@ class _ChatLexer(Lexer):
                 return [("class:code", line)]
             return [("", line)]
 
+        self._cached_text, self._cached_get_line = document.text, get_line
         return get_line
 
 
@@ -287,6 +283,9 @@ class KiloApp:
         self.usage: dict[str, Any] = {}   # token usage from the last reply
         self._answered = False            # whether the current reply has started printing
         self._pending: dict[str, Any] | None = None   # awaited inline input (selector / key)
+        self._choice_options: list[tuple[str, str]] = []
+        self._choice_index = 0
+        self._follow_output = True
         self._catalog: dict[str, Any] = {}
         self._cloud_options: list[tuple[str, dict[str, Any]]] = []
         self._ollama_models: list[dict[str, Any]] = []
@@ -299,13 +298,15 @@ class KiloApp:
         self._worker: asyncio.Task | None = None
 
         self.output = TextArea(
-            text="", read_only=True, scrollbar=True, wrap_lines=True,
+            text="", read_only=True, scrollbar=False, wrap_lines=True,
             focusable=False, style="class:output", lexer=_ChatLexer(),
         )
         self.input = TextArea(
             height=1, multiline=False, wrap_lines=False, prompt=self._input_prompt,
             style="class:prompt", accept_handler=self._accept,
             completer=_SlashCompleter(), complete_while_typing=True,
+            password=Condition(lambda: bool(self._pending and self._pending.get("kind") in
+                {"cloud_key", "cloud_custom_key", "telegram_key"})),
         )
         self._build_layout()
 
@@ -408,7 +409,7 @@ class KiloApp:
         dot = f"{pulse} online" if online else "○ offline"
         info = [
             [("class:banner.hi", "KILOFRAME  "), ("class:on" if online else "class:off", dot)],
-            [("class:tagline", "local-first · Ollama · no cloud by default")],
+            [("class:tagline", "Kilo's framework · multiple AI providers")],
             [("class:on", f"model   {self.model_name}")],
             [("class:dim", f"server  {self.server_name}")],
             [("class:dim", "tools   files · shell · web · memory · skills")],
@@ -521,6 +522,11 @@ class KiloApp:
                 rows.append(("class:kilo", f" ▶ {str(m.get('name', ''))[:26]}\n"))
         else:
             rows.append(("class:dim", " no models loaded\n"))
+        for server in self.status.get("mcp", []):
+            if server.get("state") != "disabled":
+                rows.append(("class:panel.key", f" MCP {server['name'][:13]} "))
+                rows.append(("class:on" if server["state"] == "connected" else "class:off",
+                             f"{len(server.get('tools', []))} tools\n" if server["state"] == "connected" else f"{server['state']}\n"))
 
         rows += [
             ("", "\n"),
@@ -550,10 +556,14 @@ class KiloApp:
         root = HSplit([
             Window(FormattedTextControl(self._banner_text), height=len(KILO_ART) + 1),
             Window(height=1, char="─", style="class:sep"),
-            VSplit([sidebar, self.output]),
+            VSplit([sidebar, self.output, Window(FormattedTextControl(self._scrollbar_text), width=1)]),
             Window(height=1, char="─", style="class:sep"),
             Window(FormattedTextControl(self._stats_bar), height=1),
             Window(height=1, char="─", style="class:sep"),
+            ConditionalContainer(
+                Window(FormattedTextControl(self._choice_text), height=lambda: min(8, len(self._choice_options)) + 1),
+                filter=Condition(lambda: bool(self._choice_options)),
+            ),
             self.input,
         ])
         root = FloatContainer(root, floats=[
@@ -603,7 +613,50 @@ class KiloApp:
     def _append(self, text: str) -> None:
         buff = self.output.buffer
         new = buff.text + text
-        buff.set_document(Document(new, len(new)), bypass_readonly=True)
+        position = len(new) if self._follow_output else buff.cursor_position
+        buff.set_document(Document(new, position), bypass_readonly=True)
+
+    def _scroll_to(self, row: int) -> None:
+        document = self.output.buffer.document
+        row = max(0, min(row, document.line_count - 1))
+        self._follow_output = row >= document.line_count - 1
+        self.output.buffer.cursor_position = document.translate_row_col_to_index(row, 0)
+        self.output.window.vertical_scroll = row
+        app = getattr(self, "app", None)
+        if app:
+            app.invalidate()
+
+    def _scrollbar_text(self):
+        info = self.output.window.render_info
+        height = max(3, info.window_height if info else 10)
+        count = self.output.buffer.document.line_count
+        top = self.output.window.vertical_scroll
+        thumb = 1 + int((height - 3) * top / max(1, count - 1))
+
+        def click(event):
+            if event.event_type == MouseEventType.SCROLL_UP:
+                self._scroll_to(top - 3)
+            elif event.event_type == MouseEventType.SCROLL_DOWN:
+                self._scroll_to(top + 3)
+            elif event.event_type == MouseEventType.MOUSE_DOWN or (
+                event.event_type == MouseEventType.MOUSE_MOVE and event.button == MouseButton.LEFT
+            ):
+                y = event.position.y
+                if y == 0:
+                    self._scroll_to(top - 1)
+                elif y >= height - 1:
+                    self._scroll_to(top + 1 if top + height < count else count - 1)
+                else:
+                    self._scroll_to(round((y - 1) * (count - 1) / max(1, height - 3)))
+            else:
+                return NotImplemented
+            return None
+
+        rows = []
+        for y in range(height):
+            glyph = "^" if y == 0 else "v" if y == height - 1 else "█" if y == thumb else "│"
+            rows.extend([("class:scrollbar.button" if y == thumb else "class:scrollbar", glyph, click), ("", "\n")])
+        return rows
 
     def _command_panel(self, title: str, lines: list[str]) -> None:
         """Keep command feedback readable instead of adding loose transcript text."""
@@ -625,14 +678,51 @@ class KiloApp:
 
     # ---- interaction --------------------------------------------------------
 
+    def _choice_text(self):
+        start = max(0, self._choice_index - 6)
+        rows = [("class:dim", "  ↑/↓ select · Enter apply · Esc cancel\n")]
+        for i in range(start, min(start + 8, len(self._choice_options))):
+            label = self._choice_options[i][1]
+            selected = i == self._choice_index
+            rows.append(("class:kilo" if selected else "class:dim",
+                         f"  {'›' if selected else ' '} {label}\n"))
+        return rows
+
+    def _choose(self, title: str, options: list[tuple[str, str]], kind: str, **context) -> None:
+        self._append(f"\n— {title} —\n")
+        self._pending = {"kind": kind, **context}
+        self._choice_options = options
+        self._choice_index = 0
+        if not options:
+            self._pending = None
+            self._append("— no options available —\n")
+        if getattr(self, "app", None):
+            self.app.invalidate()
+
+    def _cancel_pending(self) -> None:
+        self._choice_options = []
+        if self._perm_future and not self._perm_future.done():
+            self._perm_future.set_result("3")
+        self._pending = None
+        self._append("\n— cancelled —\n")
+
     def _accept(self, buff) -> bool:
         text = buff.text.strip()
+        if self._choice_options and not text:
+            text = self._choice_options[self._choice_index][0]
+        if text.startswith("/") and self._pending:
+            self._cancel_pending()
+            self._handle_command(text)
+            return False
         # Returning False clears the input for the next message.
         if not text:
+            if self._pending:
+                self._cancel_pending()
             return False
         # An awaited answer (cloud provider pick or API key) is consumed here rather than
         # being sent to the model. Returning False also wipes the key from the input line.
         if self._pending is not None:
+            self._choice_options = []
             if self._pending.get("kind") == "permission" and self._perm_future and not self._perm_future.done():
                 self._perm_future.set_result(text)
                 self._pending = None
@@ -645,6 +735,31 @@ class KiloApp:
         return False
 
     def _handle_command(self, text: str) -> bool:
+        text = text.strip()
+        command, _, argument = text.partition(" ")
+        # Match complete command tokens. /modelsXYZ must never trigger /model.
+        aliases = {"/kilochats": "/chats", "/kchats": "/chats", "/chat": "/chats",
+                   "/cloudswitch": "/cloud", "/exit": "/quit", "/q": "/quit"}
+        command = aliases.get(command, command)
+        text = command + (" " + argument if argument else "")
+        known = {name.strip() for name, _ in _COMMANDS}
+        if command.startswith("/") and command not in known:
+            self._append(f"\n— unknown command {command}; use /commands —\n")
+            return True
+        menus = {
+            "/effort": [(f"/effort {x}", x) for x in ("low", "medium", "high")],
+            "/agent": [(f"/agent {x}", x) for x in ("auto", "orchestrator", "research", "coding", "security", "math", "engineering", "systems", "general", "conversation", "private")],
+            "/private": [(f"/private {x}", x) for x in ("status", "on", "off", "rotate")],
+        }
+        if text in menus:
+            self._choose(text[1:], menus[text], "command")
+            return True
+        if text == "/thinking":
+            self._spawn(self._thinking_menu())
+            return True
+        if text == "/mcp":
+            self._spawn(self._mcp_menu())
+            return True
         if text in {"/quit", "/exit", "/q", "quit", "exit"}:
             self.app.exit()
             return True
@@ -670,7 +785,10 @@ class KiloApp:
             ])
             return True
         if text == "/chats":
-            self._spawn(self._list_chats())
+            self._spawn(self._kilochats())
+            return True
+        if text.startswith("/chats "):
+            self._spawn(self._open_chat(argument))
             return True
         if text == "/commands":
             self._command_panel("Commands", [f"{name:<18} {description}" for name, description in _COMMANDS])
@@ -744,6 +862,11 @@ class KiloApp:
                 self._spawn(self._local_pull(value))
             elif action == "select" and value:
                 self._spawn(self._local_select(value))
+            elif action == "select":
+                self._spawn(self._local_models())
+            elif action == "pull":
+                self._append("\n— Model name to download:\n")
+                self._pending = {"kind": "local_pull"}
             elif action == "unload":
                 self._spawn(self._local_unload(value or None))
             else:
@@ -761,6 +884,11 @@ class KiloApp:
             elif action == "add" and len(value.split(maxsplit=1)) == 2:
                 name, url = value.split(maxsplit=1)
                 self._spawn(self._localset_add(name, url))
+            elif action == "add":
+                self._append("\n— Ollama server address:\n")
+                self._pending = {"kind": "localset_url"}
+            elif action in {"remove", "default", "switch"} and not value:
+                self._spawn(self._server_picker("localset_remove" if action == "remove" else "localset_default"))
             elif action == "remove" and value:
                 self._spawn(self._localset_remove(value))
             elif action in {"default", "switch"} and value:
@@ -785,10 +913,7 @@ class KiloApp:
                 self._spawn(self._cloud_setup(pending_question=rest or None))
                 return True
             if not rest:
-                self._append(
-                    f"\n— cloud provider: {self.cloud_provider}. /switch to route here, "
-                    f"or /cloud <question> for one message —\n"
-                )
+                self._spawn(self._cloud_setup())
                 return True
             self._enqueue(rest, provider=self.cloud_provider)
             return True
@@ -810,12 +935,14 @@ class KiloApp:
                 self._spawn(self._rotate_circuit())
             elif arg == "status":
                 self._spawn(self._private_status())
-            else:  # "" or "on"
+            elif arg == "on":
                 self.private_mode = True
                 self._append("\n🛡 private mode ON · web searches and fetches route through Tor.\n"
                              "   Your IP is hidden; if Tor is down the request is refused, never sent\n"
                              "   unmasked. Exit with /private off · new IP with /private rotate\n")
                 self._spawn(self._private_status())
+            else:
+                self._append("\n— use /private to select status, on, off or rotate —\n")
             return True
         if text.startswith("/model"):
             arg = text[len("/model"):].strip()
@@ -853,18 +980,27 @@ class KiloApp:
             return
         lines = ["\npast sessions — /chat <n> to resume:"]
         for i, s in enumerate(self._sessions, 1):
-            title = (s.get("title") or "").strip() or "(untitled)"
+            title = " ".join((s.get("title") or "").split()) or "(untitled)"
             stamp = s.get("updated_at")
             when = _dt.datetime.fromtimestamp(float(stamp)).strftime("%Y-%m-%d %H:%M") if stamp else "unknown time"
             lines.append(f"  {i:>2}. {when}  {title[:48]}  · {s.get('messages',0)} msgs")
         self._append("\n".join(lines) + "\n")
 
+    async def _mcp_menu(self) -> None:
+        try:
+            data = await self.client.request("mcp_status")
+            servers = data.get("servers", [])
+            self._choose("MCP servers", [(str(i), f"{s['name']} · {s['state']} · {len(s['tools'])} tools")
+                         for i, s in enumerate(servers)], "mcp_pick", servers=servers)
+        except (ConnectionError, OSError) as exc:
+            self._append(f"\n⚠ {exc}\n")
+
     async def _kilochats(self) -> None:
         """List past chats and arm a selector: the next number typed opens and continues it."""
         await self._list_chats()
         if self._sessions:
-            self._append("  \u2192 type a number to open and continue that chat, or keep typing to stay here\n")
-            self._pending = {"kind": "chat_pick"}
+            self._choose("Open conversation", [(str(i), " ".join(str(s.get("title") or "Untitled").split())[:90])
+                         for i, s in enumerate(self._sessions, 1)], "chat_pick")
 
     async def _open_chat(self, arg: str) -> None:
         try:
@@ -893,6 +1029,8 @@ class KiloApp:
                 "chat, or anything else to cancel:\n"
             )
             self._pending = {"kind": "chat_delete"}
+            self._choose("Delete conversation", [(str(i), " ".join(str(s.get("title") or "Untitled").split())[:90])
+                         for i, s in enumerate(self._sessions, 1)], "chat_delete")
 
     async def _delete_pick(self, arg: str) -> None:
         """Delete chats chosen by number from the last listing (or 'all')."""
@@ -952,6 +1090,8 @@ class KiloApp:
         lines.append("  (type the number or name · blank line cancels)")
         self._append("\n".join(lines) + "\n")
         self._pending = {"kind": "cloud_pick", "question": pending_question, "force_key": force_key}
+        self._choose("Cloud provider", [(name, meta["label"] + (" ✓ configured" if name in configured else ""))
+                     for name, meta in self._cloud_options], "cloud_pick", question=pending_question, force_key=force_key)
 
     def _run_cloud(self, name: str, question: str | None) -> None:
         """Activate a configured provider and, if a question was queued, send it now."""
@@ -966,6 +1106,34 @@ class KiloApp:
         pending = self._pending or {}
         self._pending = None
         kind = pending.get("kind")
+        self._choice_options = []
+        if kind == "command":
+            self._handle_command(text)
+            return
+        if kind == "mcp_pick":
+            try:
+                server = pending["servers"][int(text)]
+            except (ValueError, IndexError, KeyError):
+                self._append("\n— invalid MCP selection —\n")
+                return
+            self._command_panel(server["name"], [server["state"], server.get("error") or "",
+                                *server.get("tools", []), "Configure servers in /etc/kiloframe/mcp.json; restart after changes."])
+            return
+        if kind == "localset_url":
+            from urllib.parse import urlsplit
+            url = text.strip()
+            if "://" not in url:
+                url = "http://" + url
+            parsed = urlsplit(url)
+            if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username or parsed.password:
+                self._append("\n⚠ enter an HTTP(S) Ollama server address\n")
+                self._pending = {"kind": "localset_url"}
+                return
+            if not parsed.port:
+                url = url.rstrip("/") + ":11434" if not parsed.path or parsed.path == "/" else url
+            name = re.sub(r"[^a-zA-Z0-9_-]", "-", parsed.hostname)
+            await self._localset_add(name, url)
+            return
         if kind == "local_menu":
             arg = text.strip().lower()
             if arg == "m":
@@ -1004,14 +1172,12 @@ class KiloApp:
         if kind == "localset_menu":
             arg = text.strip().lower()
             if arg == "add":
-                self._append("\n— type: <name> <url>   (e.g.  local http://127.0.0.1:11434)\n")
-                self._pending = {"kind": "localset_add"}
+                self._append("\n— Ollama server address (e.g. http://localhost:11434):\n")
+                self._pending = {"kind": "localset_url"}
             elif arg == "remove":
-                self._append("\n— type the server name to remove:\n")
-                self._pending = {"kind": "localset_remove"}
+                await self._server_picker("localset_remove")
             elif arg == "default":
-                self._append("\n— type the server name to make active:\n")
-                self._pending = {"kind": "localset_default"}
+                await self._server_picker("localset_default")
             else:
                 self._append("— cancelled —\n")
             return
@@ -1203,6 +1369,19 @@ class KiloApp:
         except Exception:
             self._ollama_running = []
 
+    async def _thinking_menu(self) -> None:
+        options = [("/thinking off", "Off")]
+        if not self.cloud_active:
+            try:
+                capability = await self.client.request("ollama_thinking_capability")
+                if capability.get("supported"):
+                    options += [(f"/thinking {x}", x.title()) for x in (capability.get("levels") or ["on"])]
+                else:
+                    self._append(f"\n— {capability.get('reason', 'Thinking unsupported')} —\n")
+            except (ConnectionError, OSError) as exc:
+                self._append(f"\n⚠ {exc}\n")
+        self._choose("Thinking", options, "command")
+
     async def _set_thinking(self, level: str) -> None:
         """Set native reasoning only after checking the selected route's capability."""
         if level == "off":
@@ -1232,7 +1411,7 @@ class KiloApp:
 
     async def _model_picker(self) -> None:
         try:
-            info = await self.client.request("provider_info")
+            info = await self.client.request("provider_info", name=self.cloud_provider or None)
         except (ConnectionError, FileNotFoundError, OSError) as exc:
             self._append(f"\n⚠ {exc}\n")
             return
@@ -1241,7 +1420,7 @@ class KiloApp:
             return
         self._append("\n☁ fetching available models…\n")
         try:
-            res = await self.client.request("provider_models")
+            res = await self.client.request("provider_models", name=info["default"], only_free=False)
         except (ConnectionError, FileNotFoundError, OSError) as exc:
             self._append(f"\n⚠ {exc}\n")
             return
@@ -1249,7 +1428,7 @@ class KiloApp:
             self._append(f"\n⚠ {res.get('error', 'could not list models')} — use /model <name>\n")
             return
         await self._refresh_model_label()
-        models = res.get("models", [])[:40]
+        models = res.get("models", [])
         if not models:
             self._append("\n— no models returned; use /model <name> —\n")
             return
@@ -1260,6 +1439,7 @@ class KiloApp:
         lines.append("  (blank line cancels)")
         self._append("\n".join(lines) + "\n")
         self._pending = {"kind": "model_pick"}
+        self._choose("Cloud model", [(str(i), model) for i, model in enumerate(models, 1)], "model_pick")
 
     async def _local_menu(self) -> None:
         """The /local command: Ollama route status, models, pull, select, unload."""
@@ -1282,6 +1462,8 @@ class KiloApp:
             f"  (blank cancels)\n"
         )
         self._pending = {"kind": "local_menu"}
+        self._choose("Ollama", [("select", "Select a downloaded model"), ("m", "Downloaded models"),
+                     ("p", "Running models"), ("pull", "Download a model"), ("u", "Unload selected model")], "local_menu")
 
     async def _local_status(self) -> None:
         try:
@@ -1321,6 +1503,8 @@ class KiloApp:
             extra = f"  {detail.get('parameter_size', '')} {detail.get('quantization_level', '')}".strip()
             lines.append(f"  {i:>2}. {m.get('name')}  {size} MiB  {extra}")
         self._append("\n".join(lines) + "\n")
+        self._choose("Ollama model", [(str(i), str(m.get("name")))
+                     for i, m in enumerate(models, 1)], "local_select")
 
     async def _local_running(self) -> None:
         try:
@@ -1422,6 +1606,16 @@ class KiloApp:
         ]
         self._append("\n".join(lines) + "\n")
         self._pending = {"kind": "localset_menu"}
+        self._choose("Ollama servers", [("add", "Enter Ollama server address"),
+                     ("default", "Use an existing server"), ("remove", "Remove a server")], "localset_menu")
+
+    async def _server_picker(self, kind: str) -> None:
+        try:
+            info = await self.client.request("ollama_servers")
+            self._choose("Select server", [(s["name"], f"{s['name']} · {s['url']}")
+                         for s in info.get("servers", [])], kind)
+        except (ConnectionError, OSError) as exc:
+            self._append(f"\n⚠ {exc}\n")
 
     async def _localset_add(self, name: str, url: str) -> None:
         try:
@@ -1431,7 +1625,11 @@ class KiloApp:
             return
         if data.get("ok"):
             self._append(f"\n✓ server '{name}' added/updated\n")
-            self._spawn(self._refresh_model_label())
+            await self._localset_default(name)
+            await self._local_models()
+            if self._ollama_models:
+                self._choose("Select model on this server", [(str(i), str(m.get("name")))
+                             for i, m in enumerate(self._ollama_models, 1)], "local_select")
         else:
             self._append(f"\n⚠ {data.get('error', 'could not add server')}\n")
 
@@ -1455,13 +1653,15 @@ class KiloApp:
             return
         if data.get("ok"):
             self._append(f"\n✓ active server is now '{name}'\n")
+            self.cloud_active = False
+            self.thinking = "off"
             self._spawn(self._refresh_model_label())
         else:
             self._append(f"\n⚠ {data.get('error', 'could not set default')}\n")
 
     async def _model_cmd(self, arg: str) -> None:
         try:
-            info = await self.client.request("provider_info")
+            info = await self.client.request("provider_info", name=self.cloud_provider or None)
         except (ConnectionError, FileNotFoundError, OSError) as exc:
             self._append(f"\n⚠ {exc}\n")
             return
@@ -1472,6 +1672,11 @@ class KiloApp:
             self._append(f"\n☁ {info['default']} · model: {info.get('model') or '(unset)'}\n"
                          f"   change it with /model <model-name>\n")
             return
+        if arg.isdigit():
+            if not 1 <= int(arg) <= len(self._model_options):
+                self._append("\n— select a model from /model first —\n")
+                return
+            arg = self._model_options[int(arg) - 1]
         try:
             res = await self.client.request("set_model", name=info["default"], model=arg)
         except (ConnectionError, FileNotFoundError, OSError) as exc:
@@ -1639,6 +1844,9 @@ class KiloApp:
         )
         self._perm_future = asyncio.get_event_loop().create_future()
         self._pending = {"kind": "permission"}
+        self._choose("Approve action", [("1", "Yes, this action"), ("2", "Yes, this session"),
+                     ("3", "No")], "permission")
+        self._choice_index = 2
         self.app.invalidate()
         try:
             ans = (await asyncio.wait_for(self._perm_future, timeout=280)).strip().lower()
@@ -1651,6 +1859,31 @@ class KiloApp:
 
     def _bindings(self) -> KeyBindings:
         kb = KeyBindings()
+
+        @kb.add("up", filter=Condition(lambda: bool(self._choice_options)), eager=True)
+        def _(event):
+            self._choice_index = (self._choice_index - 1) % len(self._choice_options)
+
+        @kb.add("down", filter=Condition(lambda: bool(self._choice_options)), eager=True)
+        def _(event):
+            self._choice_index = (self._choice_index + 1) % len(self._choice_options)
+
+        @kb.add("enter", filter=Condition(lambda: bool(self._pending)), eager=True)
+        def _(event):
+            self._accept(self.input.buffer)
+            self.input.buffer.reset()
+
+        @kb.add("escape", filter=Condition(lambda: bool(self._pending)), eager=True)
+        def _(event):
+            self._cancel_pending()
+
+        @kb.add("pageup")
+        def _(event):
+            self._scroll_to(self.output.window.vertical_scroll - 15)
+
+        @kb.add("pagedown")
+        def _(event):
+            self._scroll_to(self.output.window.vertical_scroll + 15)
 
         @kb.add("c-q")
         @kb.add("c-d")

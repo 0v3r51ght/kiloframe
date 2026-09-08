@@ -243,6 +243,25 @@ class MCPRegistry:
         self.config_path = config_path
         self.request_timeout = request_timeout
         self.servers: dict[str, MCPServer] = {}
+        self.errors: dict[str, str] = {}
+
+    def info(self) -> list[dict[str, Any]]:
+        """Public status only: never expose server environments or credentials."""
+        try:
+            raw = json.loads(self.config_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return []
+        rows = []
+        for name, entry in (raw.get("servers") or raw.get("mcpServers") or {}).items():
+            if not isinstance(entry, dict):
+                continue
+            server = self.servers.get(name)
+            connected = bool(server and server.process and server.process.returncode is None)
+            state = "connected" if connected else "disabled" if not entry.get("enabled", True) else "failed" if name in self.errors else "not connected"
+            rows.append({"name": name, "state": state,
+                         "tools": [str(t.get("name")) for t in server.tools] if connected else [],
+                         "error": self.errors.get(name, "")})
+        return rows
 
     def configured(self) -> list[MCPServerConfig]:
         try:
@@ -272,7 +291,13 @@ class MCPRegistry:
             try:
                 await server.start()
                 self.servers[config.name] = server
-            except Exception:
+                self.errors.pop(config.name, None)
+            except Exception as exc:
+                detail = str(exc)
+                for value in config.env.values():
+                    if len(str(value)) >= 4:
+                        detail = detail.replace(str(value), "[redacted]")
+                self.errors[config.name] = detail[:400]
                 # One bad server must not stop the others or the daemon.
                 log.exception("mcp server %s failed to start; skipping", config.name)
                 await server.stop()

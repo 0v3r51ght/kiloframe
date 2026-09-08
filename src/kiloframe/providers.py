@@ -31,6 +31,7 @@ from typing import Any
 import asyncio
 
 from .errors import KiloFrameError
+from .provider_protocol import anthropic_payload, anthropic_event, text_tool_messages
 
 
 log = logging.getLogger("kiloframe.providers")
@@ -88,7 +89,7 @@ KNOWN_PROVIDERS: dict[str, dict[str, str]] = {
     "anthropic": {"label": "Anthropic", "base_url": "https://api.anthropic.com/v1", "model": "claude-sonnet-4-5"},
     "groq": {"label": "Groq", "base_url": "https://api.groq.com/openai/v1", "model": "llama-3.1-8b-instant"},
     "deepseek": {"label": "DeepSeek", "base_url": "https://api.deepseek.com/v1", "model": "deepseek-chat"},
-    "together": {"label": "Together", "base_url": "https://api.together.xyz/v1", "model": "meta-llama/Llama-3.3-70B-Instruct-Turbo"},
+    "together": {"label": "Together", "base_url": "https://api.together.ai/v1", "model": "meta-llama/Llama-3.3-70B-Instruct-Turbo"},
     "mistral": {"label": "Mistral", "base_url": "https://api.mistral.ai/v1", "model": "mistral-large-latest"},
     "xai": {"label": "xAI (Grok)", "base_url": "https://api.x.ai/v1", "model": "grok-2-latest"},
     "gemini": {"label": "Google Gemini", "base_url": "https://generativelanguage.googleapis.com/v1beta/openai", "model": "gemini-2.0-flash"},
@@ -97,7 +98,7 @@ KNOWN_PROVIDERS: dict[str, dict[str, str]] = {
     "perplexity": {"label": "Perplexity", "base_url": "https://api.perplexity.ai", "model": "sonar"},
     "nebius": {"label": "Nebius", "base_url": "https://api.studio.nebius.ai/v1", "model": "meta-llama/Llama-3.3-70B-Instruct"},
     "hyperbolic": {"label": "Hyperbolic", "base_url": "https://api.hyperbolic.xyz/v1", "model": "meta-llama/Llama-3.3-70B-Instruct"},
-    "cohere": {"label": "Cohere", "base_url": "https://api.cohere.com/compatibility/v1", "model": "command-a-03-2025"},
+    "cohere": {"label": "Cohere", "base_url": "https://api.cohere.ai/compatibility/v1", "model": "command-a-03-2025"},
     "sambanova": {"label": "SambaNova", "base_url": "https://api.sambanova.ai/v1", "model": "Meta-Llama-3.3-70B-Instruct"},
     "qwen": {"label": "Alibaba Qwen", "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1", "model": "qwen-plus"},
     "huggingface": {"label": "Hugging Face Inference Providers", "base_url": "https://router.huggingface.co/v1", "model": "Qwen/Qwen2.5-Coder-32B-Instruct"},
@@ -113,12 +114,36 @@ KNOWN_PROVIDERS: dict[str, dict[str, str]] = {
 }
 
 
+# Models for new integrations are chosen from the authenticated live catalogue.
+# No guessed or stale model identifier is submitted to inference.
+KNOWN_PROVIDERS.update({
+    "deepinfra": {"label": "DeepInfra", "base_url": "https://api.deepinfra.com/v1/openai", "model": ""},
+    "moonshot": {"label": "Moonshot AI (Kimi)", "base_url": "https://api.moonshot.ai/v1", "model": ""},
+    "nvidia": {"label": "NVIDIA NIM", "base_url": "https://integrate.api.nvidia.com/v1", "model": ""},
+    "venice": {"label": "Venice AI", "base_url": "https://api.venice.ai/api/v1", "model": ""},
+    "zai": {"label": "Z.AI", "base_url": "https://api.z.ai/api/paas/v4", "model": ""},
+    "scaleway": {"label": "Scaleway", "base_url": "https://api.scaleway.ai/v1", "model": ""},
+})
+
+
+def _headers(provider: Provider) -> dict[str, str]:
+    headers = {"User-Agent": _USER_AGENT}
+    if provider.name == "anthropic":
+        headers.update({"X-API-Key": provider.api_key, "anthropic-version": "2023-06-01"})
+    else:
+        headers[provider.auth_header] = f"Bearer {provider.api_key}" if provider.auth_header == "Authorization" else provider.api_key
+    if provider.name == "openrouter":
+        headers.update(_ATTRIBUTION)
+    return headers
+
+
 class ProviderRegistry:
     """Loads provider definitions and streams completions from them on request."""
 
     def __init__(self, config_path):
         self.config_path = config_path
         self._context_limits: dict[tuple[str, str], int] = {}
+        self._text_tool_models: set[tuple[str, str]] = set()
 
     def _raw(self) -> dict[str, Any]:
         try:
@@ -137,8 +162,9 @@ class ProviderRegistry:
                 continue
             key = str(entry.get("api_key", "")).strip()
             model = str(entry.get("model", "")).strip()
-            if str(name).lower() == "groq" and model in {"llama-3.3-70b-versatile", "llama3-70b-8192"}:
-                # These Groq IDs have been retired; keep existing configs usable.
+            # Groq retired several Llama aliases; transparently migrate old
+            # configurations so existing installs continue to work.
+            if str(name).lower() == "groq" and model in {"llama3-8b-8192", "llama-3.1-70b-versatile", "llama-3.3-70b-versatile"}:
                 model = KNOWN_PROVIDERS["groq"]["model"]
             base_url = str(entry.get("base_url", "https://openrouter.ai/api/v1")).strip().rstrip("/")
             if not key or key.startswith("PASTE_"):
@@ -167,6 +193,8 @@ class ProviderRegistry:
 
         name = name.strip().lower()
         known = KNOWN_PROVIDERS.get(name, {})
+        if not known:
+            raise ProviderError(f"unknown provider {name}; use custom endpoint setup")
         base_url = known.get("base_url", "https://openrouter.ai/api/v1")
         auth_header = known.get("auth_header", "Authorization")
         if name == "cloudflare":
@@ -178,7 +206,16 @@ class ProviderRegistry:
         if not api_key.strip():
             raise ProviderError("an API key is required")
         if not chosen_model:
-            raise ProviderError(f"no default model known for {name}; pass a model explicitly")
+            provisional = Provider(name, base_url, api_key.strip(), "", auth_header=auth_header)
+            try:
+                req = urllib.request.Request(base_url + "/models", headers=_headers(provisional))
+                with urllib.request.urlopen(req, timeout=30) as response:
+                    models = _model_ids(json.load(response))
+            except Exception as exc:
+                raise ProviderError(f"{name} model discovery failed; supply a model from its console: {str(exc).replace(api_key, '[redacted]')}") from exc
+            if not models:
+                raise ProviderError(f"{name} returned no models; supply a model from its console")
+            chosen_model = models[0]
         raw = self._raw()
         raw.setdefault("providers", {})[name] = {
             "base_url": base_url,
@@ -258,7 +295,7 @@ class ProviderRegistry:
             url = f"{prov.base_url}/models"
         req = urllib.request.Request(
             url,
-            headers={prov.auth_header: f"Bearer {prov.api_key}" if prov.auth_header == "Authorization" else prov.api_key, "Accept": "application/json", "User-Agent": _USER_AGENT, **_ATTRIBUTION},
+            headers={**_headers(prov), "Accept": "application/json"},
         )
         free_ids: list[str] = []
         try:
@@ -390,14 +427,28 @@ class ProviderRegistry:
             payload["tools"] = tools
             payload["tool_choice"] = "auto"
 
+        compatibility = {"role": "system", "content": (
+            'Native tool calling is unavailable on this endpoint. Emit <tool_call>{"name":"TOOL_NAME","arguments":{...}}</tool_call> '
+            "when an operation is needed; the framework executes it and returns its result. Active definitions: "
+            + json.dumps(tools or [], ensure_ascii=False, separators=(",", ":")))}
+
+        def text_payload():
+            result = {k: v for k, v in payload.items() if k not in {"tools", "tool_choice"}}
+            result["messages"] = [*text_tool_messages(messages), compatibility]
+            return result
+
+        active_payload = text_payload() if (provider.name, provider.model) in self._text_tool_models else payload
+
         def open_request(active_payload: dict[str, Any]):
+            native = provider.name == "anthropic"
+            wire_payload = anthropic_payload(active_payload) if native else active_payload
             request = urllib.request.Request(
-                f"{provider.base_url}/chat/completions",
-                data=json.dumps(active_payload).encode(),
+                f"{provider.base_url}/{'messages' if native else 'chat/completions'}",
+                data=json.dumps(wire_payload).encode(),
                 # The key goes in a header, never a command line or a log.
                 headers={
                     "Content-Type": "application/json",
-                    provider.auth_header: f"Bearer {provider.api_key}" if provider.auth_header == "Authorization" else provider.api_key,
+                    **_headers(provider),
                     "Accept": "text/event-stream",
                     "User-Agent": _USER_AGENT,
                     **_ATTRIBUTION,
@@ -406,16 +457,17 @@ class ProviderRegistry:
             return urllib.request.urlopen(request, timeout=provider.timeout)
 
         try:
-            response = await asyncio.to_thread(open_request, payload)
+            response = await asyncio.to_thread(open_request, active_payload)
         except urllib.error.HTTPError as exc:
-            detail = exc.read()[:400].decode("utf-8", "replace")
+            detail = exc.read()[:400].decode("utf-8", "replace").replace(provider.api_key, "[redacted]")
+            exc.close()
             # Some OpenAI-compatible endpoints serve models that can reason about tools
             # but reject the native `tools` request field. Retry those models once with the
             # same schemas expressed as an explicit text protocol; agent.py safely recovers
             # the resulting JSON tool envelope against the active interface allow-list.
-            tool_schema_error = bool(tools) and exc.code in {400, 404, 415, 422} and any(
+            tool_schema_error = provider.name != "anthropic" and bool(tools) and exc.code in {400, 415, 422} and any(
                 word in detail.lower()
-                for word in ("tool", "function", "schema", "unsupported", "unknown field")
+                for word in ("tool", "function")
             )
             if not tool_schema_error:
                 raise ProviderError(f"{provider.label} refused the request ({exc.code}): {detail}") from exc
@@ -430,13 +482,11 @@ class ProviderRegistry:
                     + json.dumps(tools, ensure_ascii=False, separators=(",", ":"))
                 ),
             }
-            fallback_payload = dict(payload)
-            fallback_payload.pop("tools", None)
-            fallback_payload.pop("tool_choice", None)
-            fallback_payload["messages"] = [*messages, compatibility]
+            fallback_payload = text_payload()
             log.info("%s rejected native tools; using text-tool compatibility", provider.label)
             try:
                 response = await asyncio.to_thread(open_request, fallback_payload)
+                self._text_tool_models.add((provider.name, provider.model))
             except urllib.error.HTTPError as retry:
                 retry_detail = retry.read()[:400].decode("utf-8", "replace")
                 raise ProviderError(
@@ -448,6 +498,7 @@ class ProviderRegistry:
         except Exception as exc:
             raise ProviderError(f"{provider.label} unreachable: {exc}") from exc
 
+        completed = False
         try:
             while True:
                 raw = await asyncio.to_thread(response.readline)
@@ -458,18 +509,32 @@ class ProviderRegistry:
                     continue
                 data = line[5:].strip()
                 if data == "[DONE]":
+                    completed = True
                     break
                 try:
                     event = json.loads(data)
                 except json.JSONDecodeError:
                     continue
+                if event.get("error"):
+                    raise ProviderError(f"{provider.label} stream error: " + str(event["error"]).replace(provider.api_key, "[redacted]")[:500])
+                if provider.name == "anthropic":
+                    if event.get("type") == "message_stop":
+                        completed = True
+                        break
+                    translated = anthropic_event(event)
+                    if translated:
+                        yield translated
+                    continue
                 choices = event.get("choices") or []
                 if choices:
+                    completed = completed or bool(choices[0].get("finish_reason"))
                     delta = dict(choices[0].get("delta") or {})
                     delta.pop("reasoning", None)
                     delta.pop("reasoning_content", None)
                     yield {"delta": delta, "finish_reason": choices[0].get("finish_reason")}
                 if event.get("usage"):
                     yield {"usage": event["usage"]}
+            if not completed:
+                raise ProviderError(f"{provider.label} stream ended without completion; partial output is not a successful answer")
         finally:
             response.close()

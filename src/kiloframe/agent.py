@@ -16,7 +16,7 @@ from .prompt import REMOTE_SUFFIX, SYSTEM_PROMPT
 from .providers import ProviderRegistry
 from .runtime import OllamaRuntime
 from .security import PermissionCallback
-from .tools import ToolContext, ToolRegistry
+from .tools import ToolContext, ToolRegistry, tool_failed
 
 # Phrases that, when a reply ends on them, mark it as an announced-but-undelivered action
 # rather than an answer. Matched against the tail of the message so a reply that says "let
@@ -322,6 +322,8 @@ class Agent:
         # reach and stops pasting file contents instead of writing them. This is the single
         # biggest lever against "multiple tools blocked" and lazy, describe-only answers.
         _cwd = (cwd or self.settings.home).resolve()
+        if not any(_cwd == root or root in _cwd.parents for root in self.settings.allowed_roots):
+            _cwd = self.settings.home.resolve()
         _roots = ", ".join(str(r) for r in self.settings.allowed_roots)
         messages.append(
             {
@@ -358,7 +360,7 @@ class Agent:
                 "role": "system",
                 "content": (
                     f"Active specialist for this turn: {profile.name}. It is already active; "
-                    "do not claim that agents are unavailable. Real tools available in this "
+                    "apply it only within the user's scope and Core Directive. Real tools available in this "
                     "interface: "
                     + (", ".join(available_tool_names) if available_tool_names else "none")
                     + ". Use these exact tool names when the task needs action; never claim a "
@@ -436,7 +438,7 @@ class Agent:
         messages.extend(history)
         context = ToolContext(
             session_id=session_id,
-            cwd=(cwd or self.settings.home).resolve(),
+            cwd=_cwd,
             remote=remote,
             permission_callback=permission_callback,
             private=private,
@@ -455,6 +457,8 @@ class Agent:
         research_required = profile.name in {"research", "private"}
         research_nudges = 0
         successful_tools: set[str] = set()
+        unresolved_failures: dict[str, str] = {}
+        failure_nudges = 0
         inline_nudged = False
         # Framework-enforced address: the turn opens with 'Sir,' and closes with
         # ', Sir.' no matter how weak the model is. See the wrap points below.
@@ -508,6 +512,7 @@ class Agent:
             emitted_this_step = False
             calls: dict[int, dict[str, Any]] = {}
             usage: dict[str, Any] | None = None
+            finish_reason = None
             # aclosing is required here: if this generator itself gets closed while
             # suspended mid-iteration (a disconnected chat client), a bare `async for`
             # does not close the inner chat_stream generator, leaking the open HTTP
@@ -519,11 +524,12 @@ class Agent:
             )
             async with aclosing(source) as stream:
                 async for event in stream:
+                    finish_reason = event.get("finish_reason") or finish_reason
                     if event.get("status"):
                         yield {"type": "runtime_status", "text": str(event["status"])}
                         continue
                     if "usage" in event:
-                        usage = event["usage"]
+                        usage = {**(usage or {}), **event["usage"]}
                         continue
                     delta = event.get("delta", {})
                     content = delta.get("content")
@@ -612,6 +618,34 @@ class Agent:
                 assistant["tool_calls"] = tool_calls
             messages.append(assistant)
             if not tool_calls:
+                if finish_reason == "length":
+                    messages.append({"role": "system", "content":
+                        "Your response was cut off by the output limit. Continue the unfinished "
+                        "task using the existing results; do not repeat completed actions. "
+                        "Produce the complete final response when the requested work is verified."})
+                    if emitted_this_step:
+                        yield {"type": "response_reset"}
+                    sir_started = False
+                    continue
+                if unresolved_failures and not re.search(
+                    r"\b(fail\w*|error|unable|cannot|could not|not complete|incomplete|denied|blocked|unavailable|instead|recovered|fallback)\b",
+                    content, re.IGNORECASE,
+                ):
+                    if emitted_this_step:
+                        yield {"type": "response_reset"}
+                    sir_started = False
+                    failure_nudges += 1
+                    if failure_nudges <= 2:
+                        messages.append({"role": "system", "content":
+                            "These operations have unresolved failures: " + json.dumps(unresolved_failures) +
+                            ". Inspect and correct them, or explain the verified alternative or remaining "
+                            "limitation. Do not present unverified work as completed."})
+                        continue
+                    failure = "Sir, the task is not verified: " + "; ".join(unresolved_failures.values()) + ", Sir."
+                    yield {"type": "token", "text": failure}
+                    self.memory.add_message(session_id, "assistant", failure)
+                    yield {"type": "done", "session_id": session_id, "task_failed": True}
+                    return
                 if saw_inline and (rejected or not recovered) and not inline_nudged:
                     inline_nudged = True
                     available = ", ".join(sorted(allowed_names))
@@ -764,7 +798,8 @@ class Agent:
                     yield {"type": "token", "text": ", Sir."}
                     final = "Sir, " + body + ", Sir."
                 else:
-                    final = "Sir."
+                    final = "Sir, the model returned no answer; the task is not complete, Sir."
+                    yield {"type": "token", "text": final}
                 self.memory.add_message(session_id, "assistant", final)
                 yield {"type": "done", "session_id": session_id, "usage": usage or {}}
                 return
@@ -783,15 +818,14 @@ class Agent:
                     if call_key in seen_calls:
                         output = json.dumps(
                             {
-                                "error": "duplicate tool call; use the previous result and answer the user now"
+                                "error": "unchanged duplicate tool call blocked; inspect the previous result, correct the arguments or use another tool, then continue the remaining task"
                             }
                         )
-                        tool_schemas = []
                         yield {
                             "type": "tool_end",
                             "name": name,
                             "ok": False,
-                            "summary": "duplicate call blocked; tools disabled for the next step",
+                            "summary": "unchanged duplicate blocked; other tools remain available",
                         }
                         messages.append(
                             {
@@ -813,12 +847,22 @@ class Agent:
                     yield {
                         "type": "tool_end",
                         "name": name,
-                        "ok": True,
+                        "ok": not tool_failed(result),
                         "summary": json.dumps(result, ensure_ascii=False)[:4000],
                     }
-                    successful_tools.add(name)
+                    if not tool_failed(result):
+                        successful_tools.add(name)
+                        unresolved_failures.pop(name, None)
+                        # A successful change can make an earlier read/check useful again.
+                        if name == "write_file" or name.startswith("mcp__") or (
+                            name == "run_command" and self.tools.commands.assess(arguments["command"], remote).risk.value != "safe"
+                        ):
+                            seen_calls.clear()
+                    else:
+                        unresolved_failures[name] = f"{name}: {output[:350]}"
                 except Exception as exc:
                     output = json.dumps({"error": str(exc)}, ensure_ascii=False)
+                    unresolved_failures[name] = f"{name}: {str(exc)[:350]}"
                     yield {
                         "type": "tool_end",
                         "name": name,
@@ -834,10 +878,9 @@ class Agent:
                     }
                 )
 
-        message = (
-            f"I've reached the {max_steps}-step safety limit for one turn. Here is what I "
-            "have so far; tell me to continue and I'll pick up from here."
-        )
+        yield {"type": "response_reset"}
+        message = (f"Sir, the {max_steps}-step limit was reached before completion. "
+                   "Completed work is preserved; the requested outcome is not yet verified, Sir.")
         self.memory.add_message(session_id, "assistant", message)
         yield {"type": "token", "text": message}
         yield {"type": "done", "session_id": session_id, "limited": True}

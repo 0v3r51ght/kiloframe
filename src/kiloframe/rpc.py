@@ -73,9 +73,21 @@ class RPCServer:
                 status = self.runtime.status()
                 status["healthy"] = await self.runtime.healthy()
                 status["memory"] = self.memory.stats()
+                mcp = getattr(self.agent.tools, "mcp", None)
+                status["mcp"] = mcp.info() if mcp else []
                 # Host capacity is runtime data, not invented model metadata.
                 status["profile"] = self.resources.profile().to_dict()
                 await self._send(writer, {"type": "result", "data": status})
+            elif command == "mcp_status":
+                mcp = getattr(self.agent.tools, "mcp", None)
+                await self._send(writer, {"type": "result", "data": {"servers": mcp.info() if mcp else []}})
+            elif command == "doctor":
+                from dataclasses import asdict
+                from .doctor import run_checks
+                checks = await asyncio.to_thread(run_checks, self.agent.settings)
+                await self._send(writer, {"type": "result", "data": {
+                    "checks": [asdict(check) for check in checks], "uid": os.getuid(),
+                }})
             elif command == "resources":
                 await self._send(
                     writer,
@@ -84,7 +96,7 @@ class RPCServer:
             elif command == "model_info":
                 try:
                     await self._send(
-                        writer, {"type": "result", "data": await self.runtime.metadata()}
+                        writer, {"type": "result", "data": self.runtime.metadata()}
                     )
                 except (ConnectionError, OSError) as exc:
                     await self._send(

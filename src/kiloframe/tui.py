@@ -112,7 +112,7 @@ class TerminalUI:
         state = f"{GREEN}online{RESET}" if online else f"{YELLOW}offline{RESET}"
         info = [
             f"{BOLD}{GREEN}KILOFRAME{RESET}  {dot} {state}",
-            f"{DIM}local-first · Ollama · no cloud by default{RESET}",
+            f"{DIM}Kilo's framework · multiple AI providers{RESET}",
             f"{DIM}model   {RESET}{model_name}" if online else f"{YELLOW}sudo systemctl start kiloframe{RESET}",
             f"{DIM}server  {RESET}{server}" if (online and server) else "",
             f"{DIM}tools   {RESET}files · shell · web · memory · skills" if online else "",

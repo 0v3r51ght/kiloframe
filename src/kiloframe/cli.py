@@ -13,7 +13,7 @@ from typing import Any
 
 from . import __version__
 from .config import Settings
-from .doctor import run_checks
+from .doctor import Check, run_checks
 from .errors import KiloFrameError
 from .resources import ResourceManager
 from .rpc import RPCClient
@@ -55,7 +55,7 @@ def daemon_start_hint() -> str:
     """Give an executable recovery command, including for containers without systemd."""
     if _systemd_available():
         return "sudo systemctl start kiloframe"
-    return "sudo -u kiloframe env PYTHONPATH=/opt/kiloframe/app/src python3 -m kiloframe.daemon"
+    return "sudo kiloframe start"
 
 
 def print_status(status: dict[str, Any] | None) -> None:
@@ -158,8 +158,15 @@ def _manual_service_action(action: str, settings: Settings) -> int:
         if pid is not None:
             print(f"KiloFrame daemon is already active (pid {pid}).")
             return 0
+        import pwd
+        # The installer owns the protected configuration directory as the selected
+        # non-root runtime account. Use the same identity on non-systemd hosts.
+        runtime_user = pwd.getpwuid(settings.config_dir.stat().st_uid).pw_name
+        if runtime_user == "root":
+            print("Runtime account must be non-root; rerun the installer.", file=sys.stderr)
+            return 1
         subprocess.Popen(
-            ["sudo", "-u", "kiloframe", "env", "PYTHONPATH=/opt/kiloframe/app/src",
+            ["sudo", "-H", "-u", runtime_user, "env", "PYTHONPATH=/opt/kiloframe/app/src",
              "/usr/bin/python3", "-m", "kiloframe.daemon"],
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
@@ -477,7 +484,12 @@ async def async_main(args: argparse.Namespace, settings: Settings) -> int:
         except (FileNotFoundError, ConnectionError):
             pass
     elif args.command == "doctor":
-        checks = await asyncio.to_thread(run_checks, settings)
+        try:
+            report = await client.request("doctor")
+            checks = [Check(**item) for item in report["checks"]]
+            print(f"Runtime checks executed by daemon uid {report['uid']}")
+        except (FileNotFoundError, ConnectionError, OSError):
+            checks = await asyncio.to_thread(run_checks, settings)
         for check in checks:
             icon = f"{GREEN}PASS" if check.ok else f"{YELLOW}{'WARN' if check.warning else 'FAIL'}"
             print(f"{icon}{RESET}  {check.name:<20} {check.detail}")

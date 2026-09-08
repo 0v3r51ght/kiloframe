@@ -105,6 +105,12 @@ install -d -m 0755 /opt/kiloframe/app
 # writable for atomic replace() updates.
 install -d -m 0750 -o "$KILO_USER" -g "$KILO_GROUP" /etc/kiloframe
 install -d -m 0750 -o "$KILO_USER" -g "$KILO_GROUP" /var/lib/kiloframe /var/log/kiloframe
+# Preserve existing runtime data when moving to the operator's non-root account.
+if [[ -x /usr/local/bin/kiloframe ]]; then
+    /usr/local/bin/kiloframe stop
+fi
+chown -R "$KILO_USER:$KILO_GROUP" /etc/kiloframe /var/lib/kiloframe /var/log/kiloframe
+install -d -m 0750 -o "$KILO_USER" -g "$KILO_GROUP" /run/kiloframe
 cp -a "$ROOT/src" "$ROOT/pyproject.toml" /opt/kiloframe/app/
 chown -R root:root /opt/kiloframe/app
 find /opt/kiloframe/app -type d -exec chmod 0755 {} +

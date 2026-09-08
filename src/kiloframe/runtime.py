@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import time
 from collections.abc import AsyncIterator
@@ -110,6 +111,13 @@ class OllamaRuntime:
             think = True
         elif think not in {"low", "medium", "high"}:
             think = None
+        # A fixed 2048 context was smaller than the directive and tool schemas alone.
+        # Reserve room for the entire request plus output rather than letting Ollama
+        # silently discard the instructions or the user's task from the front.
+        prompt_chars = len(json.dumps(payload.get("messages") or [], ensure_ascii=False))
+        prompt_chars += len(json.dumps(payload.get("tools") or [], ensure_ascii=False))
+        required = (prompt_chars + 1) // 2 + int(payload.get("max_tokens") or 1536) + 512
+        context_tokens = max(self.settings.ollama_context_tokens, ((required + 1023) // 1024) * 1024)
         async for event in self.client().chat_stream(
             model=model,
             messages=payload.get("messages") or [],
@@ -117,7 +125,7 @@ class OllamaRuntime:
             max_tokens=payload.get("max_tokens"),
             temperature=float(payload.get("temperature", 0.4)),
             top_p=float(payload.get("top_p", 0.9)),
-            num_ctx=self.settings.ollama_context_tokens,
+            num_ctx=context_tokens,
             think=think,
         ):
             yield event

@@ -122,6 +122,15 @@ def _object_schema(
     }
 
 
+def tool_failed(result: Any) -> bool:
+    """Transport success does not imply that the requested operation succeeded."""
+    return isinstance(result, dict) and (
+        bool(result.get("error")) or result.get("isError") is True
+        or result.get("ok") is False
+        or ("exit_code" in result and result["exit_code"] != 0)
+    )
+
+
 class ToolRegistry:
     def __init__(
         self,
@@ -183,7 +192,7 @@ class ToolRegistry:
                     context.session_id,
                     name,
                     arguments,
-                    f"ok in {time.monotonic() - started:.3f}s",
+                    f"{'error' if tool_failed(result) else 'ok'} in {time.monotonic() - started:.3f}s",
                     context.remote,
                 )
                 return result
@@ -208,7 +217,7 @@ class ToolRegistry:
         started = time.monotonic()
         try:
             result = await tool.handler(arguments, context)
-            outcome = f"ok in {time.monotonic() - started:.3f}s"
+            outcome = f"{'error' if tool_failed(result) else 'ok'} in {time.monotonic() - started:.3f}s"
             self.memory.audit(
                 context.session_id, name, arguments, outcome, context.remote
             )
