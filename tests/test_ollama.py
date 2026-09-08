@@ -68,6 +68,32 @@ class OllamaProtocolTests(unittest.IsolatedAsyncioTestCase):
             _ = [e async for e in OllamaClient("http://localhost:11434").chat_stream("test", [], num_ctx=2048)]
         self.assertEqual(captured[0]["options"]["num_ctx"], 2048)
 
+    async def test_cuda_oom_retries_same_model_on_cpu_and_reports_recovery(self):
+        captured = []
+
+        def open_request(request, **kwargs):
+            captured.append(json.loads(request.data))
+            if len(captured) == 1:
+                raise urllib.error.HTTPError(
+                    request.full_url,
+                    500,
+                    "Internal Server Error",
+                    {},
+                    io.BytesIO(json.dumps({"error": "CUDA error: out of memory"}).encode()),
+                )
+            return io.BytesIO(b'{"message":{"content":"works"}}\n{"done":true}\n')
+
+        with patch("urllib.request.urlopen", side_effect=open_request):
+            events = [
+                event async for event in
+                OllamaClient("http://localhost:11434").chat_stream("test", [])
+            ]
+
+        self.assertIn("retrying", events[0]["status"])
+        self.assertNotIn("num_gpu", captured[0]["options"])
+        self.assertEqual(captured[1]["options"]["num_gpu"], 0)
+        self.assertEqual(events[1]["delta"]["content"], "works")
+
 
 class OllamaConfigurationTests(unittest.TestCase):
     def test_invalid_server_does_not_overwrite_existing_configuration(self):

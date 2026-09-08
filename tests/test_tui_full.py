@@ -4,7 +4,7 @@ import shutil
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 try:
     from prompt_toolkit.document import Document
@@ -18,6 +18,26 @@ except ModuleNotFoundError as exc:
 
 @unittest.skipIf(KiloApp is None, "prompt_toolkit is not installed in the raw source-test environment")
 class FullTUIDirectChatTests(unittest.IsolatedAsyncioTestCase):
+    async def test_direct_local_select_accepts_number_from_displayed_model_list(self):
+        app = KiloApp(SimpleNamespace(socket_path=Path("/tmp/in-memory.sock")))
+        app.app = SimpleNamespace(invalidate=lambda: None)
+        app.client.request = AsyncMock(side_effect=[
+            [
+                {"name": "large:latest"},
+                {"name": "small:latest"},
+            ],
+            {"ok": True, "model": "small:latest", "server": "test"},
+            {"model": "small:latest", "server": "test", "state": "ready"},
+        ])
+
+        await app._local_select("2")
+
+        self.assertIn("selected small:latest", app.output.buffer.text)
+        self.assertEqual(
+            app.client.request.await_args_list[1].kwargs,
+            {"model": "small:latest"},
+        )
+
     def test_command_panel_is_a_closed_readable_box(self):
         app = KiloApp(SimpleNamespace(socket_path=Path("/tmp/in-memory.sock")))
         with patch("shutil.get_terminal_size", return_value=SimpleNamespace(columns=100, lines=30)):
@@ -28,12 +48,31 @@ class FullTUIDirectChatTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("│ /thinking on", rendered)
         self.assertTrue(rendered.rstrip().endswith("╯"))
 
+    def test_command_panel_wraps_at_word_boundaries(self):
+        app = KiloApp(SimpleNamespace(socket_path=Path("/tmp/in-memory.sock")))
+        with patch("shutil.get_terminal_size", return_value=SimpleNamespace(columns=70, lines=30)):
+            app._command_panel(
+                "Commands",
+                ["/agent             orchestrator research coding security math engineering systems private"],
+            )
+        rendered = app.output.buffer.text
+        self.assertIn("engineering", rendered)
+        self.assertNotIn("engin\neering", rendered)
+
     def test_narrow_header_keeps_the_wordmark_without_status_text_overwriting_it(self):
         app = KiloApp(SimpleNamespace(socket_path=Path("/tmp/in-memory.sock")))
         with patch("shutil.get_terminal_size", return_value=SimpleNamespace(columns=80, lines=24)):
             text = "".join(value for _style, value in app._banner_text()).splitlines()[0]
         self.assertIn("██╗", text)
         self.assertNotIn("KILOFRAME  ", text)
+
+    def test_unloaded_selected_model_is_not_labelled_ready(self):
+        app = KiloApp(SimpleNamespace(socket_path=Path("/tmp/in-memory.sock")))
+        app.status = {"healthy": True, "model": "small:latest"}
+        app._ollama_running = []
+        rendered = "".join(value for _style, value in app._stats_bar())
+        self.assertIn("model selected · not loaded", rendered)
+        self.assertNotIn("model ready", rendered)
     def test_python_fence_receives_language_aware_syntax_styles(self):
         document = Document(
             "\u2502 ```python                         \u2502\n"
@@ -56,6 +95,7 @@ class FullTUIDirectChatTests(unittest.IsolatedAsyncioTestCase):
             {"type": "session", "session_id": "direct-chat"},
             {"type": "agent", "profile": "research"},
             {"type": "thinking"},
+            {"type": "runtime_status", "text": "GPU memory exhausted; retrying on CPU"},
             {"type": "tool_start", "name": "web_search", "arguments": {"query": "Kilo"}},
             {"type": "tool_end", "name": "web_search", "ok": True, "summary": "2 results"},
             {"type": "tool_start", "name": "web_fetch", "arguments": {"url": "https://example.com"}},
@@ -100,7 +140,7 @@ class FullTUIDirectChatTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Verified answer", rendered)
         top = rendered.index("╭─ Kilo ")
         bottom = rendered.index("╰", top)
-        for expected in ("research agent", "web_search", "web_fetch", "Verified answer"):
+        for expected in ("research agent", "retrying on CPU", "web_search", "web_fetch", "Verified answer"):
             self.assertLess(top, rendered.index(expected))
             self.assertLess(rendered.index(expected), bottom)
 

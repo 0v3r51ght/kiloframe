@@ -60,6 +60,8 @@ class InstallationTests(unittest.TestCase):
         self.assertIn("/usr/local/bin/serena", install)
         self.assertIn("@playwright/cli", install)
         self.assertIn("mcp.preconfigured.json", install)
+        self.assertIn('"command": "context7-mcp"', config)
+        self.assertIn('@upstash/context7-mcp@latest', install)
         for name in ("context7", "serena", "github", "exa", "firecrawl"):
             self.assertIn(f'"{name}"', config)
 

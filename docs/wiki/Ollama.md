@@ -9,7 +9,7 @@ server, configured locally or remotely.
 ❯ /localset default lab
 ❯ /local status
 ❯ /local models
-❯ /local select <downloaded model>
+❯ /local select <downloaded model or displayed number>
 ❯ /local ps
 ```
 
@@ -21,3 +21,8 @@ release the selected (or named) model using its supported keep-alive mechanism.
 The default request context is 2048 tokens to reduce KV-cache GPU out-of-memory failures
 on constrained servers. Raise `KILOFRAME_OLLAMA_CONTEXT_TOKENS` only after verifying
 that the chosen server has enough memory, then restart the daemon.
+
+If Ollama still returns a CUDA out-of-memory error during automatic placement, KiloFrame
+reports the recovery in Kilo's live box and retries once with Ollama's documented
+`num_gpu: 0` CPU setting. It never changes the configured server or model, loops retries,
+or reports a second failure as success.

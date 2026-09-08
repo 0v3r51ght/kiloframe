@@ -4,6 +4,7 @@ import argparse
 import asyncio
 import json
 import os
+import signal
 import subprocess
 import sys
 import time
@@ -74,12 +75,16 @@ def print_status(status: dict[str, Any] | None) -> None:
         state = "UNHEALTHY"
     elif not model:
         state = "MODEL REQUIRED"
+    elif status.get("loaded") is False:
+        state = "MODEL SELECTED"
 
     print("KILOFRAME STATUS")
     print(f"STATE        {state}")
     print(f"daemon       {'ACTIVE' if status.get('running') else 'INACTIVE'}  pid {status.get('pid', '?')}")
     print(f"ollama       {'REACHABLE' if status.get('healthy') else 'UNREACHABLE'}  {status.get('server') or 'not configured'}")
     print(f"model        {model or 'none selected'}")
+    if status.get("loaded") is not None:
+        print(f"loaded       {'YES' if status.get('loaded') else 'NO — loads on first request'}")
     print(f"uptime       {_duration(status.get('uptime_seconds', 0))}")
     mem = status.get("profile", {})
     total = (mem or {}).get("total_mb", 0)
@@ -89,9 +94,7 @@ def print_status(status: dict[str, Any] | None) -> None:
     if meminfo:
         print(f"memory       {meminfo.get('facts', '?')} facts · {meminfo.get('skills', '?')} skills · {meminfo.get('sessions', '?')} sessions")
     start_hint = daemon_start_hint()
-    restart_hint = "sudo systemctl restart kiloframe" if _systemd_available() else (
-        "stop the manual daemon, then run the start command below"
-    )
+    restart_hint = "sudo systemctl restart kiloframe" if _systemd_available() else "sudo kiloframe restart"
     if not status.get("healthy"):
         print(f"recovery     check the configured Ollama server, then: {restart_hint}")
     elif not model:
@@ -117,15 +120,93 @@ def runtime_summary(data: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
-def service_action(action: str) -> int:
-    if not _systemd_available():
-        print(f"KiloFrame cannot {action} itself because systemd is not running.", file=sys.stderr)
-        print(f"Manual start: {daemon_start_hint()}", file=sys.stderr)
+def _manual_daemon_pid(settings: Settings) -> int | None:
+    """Return the PID recorded by KiloFrame, but never trust a stale PID file."""
+    path = settings.runtime_dir / "kiloframe.pid"
+    try:
+        pid = int(path.read_text(encoding="ascii").strip())
+        os.kill(pid, 0)
+        command = Path(f"/proc/{pid}/cmdline").read_bytes().replace(b"\0", b" ")
+        return pid if b"kiloframe.daemon" in command else None
+    except (FileNotFoundError, PermissionError, ProcessLookupError, ValueError, OSError):
+        return None
+
+
+def _manual_service_action(action: str, settings: Settings) -> int:
+    if os.geteuid() != 0:
+        print(f"Manual daemon control needs root. Run: sudo kiloframe {action}", file=sys.stderr)
         return 2
+
+    def stop() -> int:
+        pid = _manual_daemon_pid(settings)
+        if pid is None:
+            print("KiloFrame daemon is already stopped.")
+            return 0
+        os.kill(pid, signal.SIGTERM)
+        for _ in range(100):
+            try:
+                os.kill(pid, 0)
+            except ProcessLookupError:
+                print("KiloFrame daemon stopped.")
+                return 0
+            time.sleep(0.1)
+        print(f"KiloFrame daemon pid {pid} did not stop within 10 seconds.", file=sys.stderr)
+        return 1
+
+    def start() -> int:
+        pid = _manual_daemon_pid(settings)
+        if pid is not None:
+            print(f"KiloFrame daemon is already active (pid {pid}).")
+            return 0
+        subprocess.Popen(
+            ["sudo", "-u", "kiloframe", "env", "PYTHONPATH=/opt/kiloframe/app/src",
+             "/usr/bin/python3", "-m", "kiloframe.daemon"],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+        for _ in range(100):
+            pid = _manual_daemon_pid(settings)
+            if pid is not None and settings.socket_path.exists():
+                print(f"KiloFrame daemon started (pid {pid}).")
+                return 0
+            time.sleep(0.1)
+        print(f"KiloFrame daemon did not become ready. Check {settings.log_dir / 'kiloframe.log'}", file=sys.stderr)
+        return 1
+
+    if action == "stop":
+        return stop()
+    if action == "start":
+        return start()
+    stopped = stop()
+    return start() if stopped == 0 else stopped
+
+
+def service_action(action: str, settings: Settings | None = None) -> int:
+    settings = settings or Settings()
+    if not _systemd_available():
+        return _manual_service_action(action, settings)
     command = ["systemctl", action, "kiloframe.service"]
     if os.geteuid() != 0:
         command.insert(0, "sudo")
     return subprocess.run(command, check=False).returncode
+
+
+def show_logs(lines: int, settings: Settings) -> int:
+    if _systemd_available():
+        return subprocess.run(
+            ["journalctl", "-u", "kiloframe.service", "-n", str(lines), "--no-pager"],
+            check=False,
+        ).returncode
+    path = settings.log_dir / "kiloframe.log"
+    try:
+        content = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except FileNotFoundError:
+        print(f"No KiloFrame log exists yet at {path}", file=sys.stderr)
+        return 1
+    print("\n".join(content[-max(0, lines):]))
+    return 0
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -368,7 +449,15 @@ async def async_main(args: argparse.Namespace, settings: Settings) -> int:
     if args.command == "chat":
         return 0 if await TerminalUI(client).ask(" ".join(args.text)) else 1
     elif args.command == "status":
-        print_status(await client.request("status"))
+        status = await client.request("status")
+        try:
+            running = await client.request("ollama_running")
+            if isinstance(running, list):
+                selected = str(status.get("model") or "")
+                status["loaded"] = any(str(item.get("name") or "") == selected for item in running)
+        except (FileNotFoundError, ConnectionError, OSError, KiloFrameError):
+            status["loaded"] = None
+        print_status(status)
     elif args.command == "resources":
         try:
             json_print(await client.request("resources"))
@@ -415,9 +504,9 @@ def main() -> None:
     args = parser.parse_args()
     settings = Settings()
     if args.command in {"start", "stop", "restart"}:
-        raise SystemExit(service_action(args.command))
+        raise SystemExit(service_action(args.command, settings))
     if args.command == "logs":
-        raise SystemExit(subprocess.run(["journalctl", "-u", "kiloframe.service", "-n", str(args.lines), "--no-pager"], check=False).returncode)
+        raise SystemExit(show_logs(args.lines, settings))
     if args.command == "telegram":
         raise SystemExit(telegram_command(args, settings))
     try:

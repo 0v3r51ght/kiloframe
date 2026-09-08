@@ -519,6 +519,9 @@ class Agent:
             )
             async with aclosing(source) as stream:
                 async for event in stream:
+                    if event.get("status"):
+                        yield {"type": "runtime_status", "text": str(event["status"])}
+                        continue
                     if "usage" in event:
                         usage = event["usage"]
                         continue

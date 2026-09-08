@@ -28,8 +28,9 @@ sudo ./scripts/install.sh
 ```
 
 The installer installs KiloFrame but does not download a model. On a normal systemd
-host it enables the daemon. In a container or another non-systemd environment it prints
-the exact manual daemon command; see [Installation](docs/INSTALLATION.md).
+host it enables the daemon. In a container or another non-systemd environment,
+`sudo kiloframe start|stop|restart` controls the detached daemon and status prints the
+exact supervisor command; see [Installation](docs/INSTALLATION.md).
 
 ## First run
 

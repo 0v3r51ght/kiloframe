@@ -226,6 +226,8 @@ class OllamaClient:
                 detail = json.loads(exc.read()).get("error", "")
             except Exception:
                 detail = ""
+            finally:
+                exc.close()
             raise OllamaError(f"Ollama server refused {path} ({exc.code}): {detail or exc.reason}") from exc
         except urllib.error.URLError as exc:
             raise OllamaError(f"Ollama server unreachable at {self.url}: {exc.reason}") from exc
@@ -375,7 +377,33 @@ class OllamaClient:
                 detail = json.loads(exc.read()).get("error", "")
             except Exception:
                 detail = ""
-            raise OllamaError(f"inference request refused ({exc.code}): {detail or exc.reason}") from exc
+            finally:
+                exc.close()
+            failure = str(detail or exc.reason)
+            # Ollama exposes num_gpu as an official request option. When its automatic
+            # GPU placement returns a CUDA OOM, retry this request once on CPU rather
+            # than claiming the configured model is unavailable.
+            if exc.code == 500 and "out of memory" in failure.lower() and "cuda" in failure.lower():
+                options["num_gpu"] = 0
+                yield {"status": "GPU memory exhausted; retrying the selected model on CPU"}
+                try:
+                    response = await asyncio.to_thread(open_request)
+                except urllib.error.HTTPError as retry_exc:
+                    retry_detail = ""
+                    try:
+                        retry_detail = json.loads(retry_exc.read()).get("error", "")
+                    except Exception:
+                        retry_detail = ""
+                    finally:
+                        retry_exc.close()
+                    raise OllamaError(
+                        f"inference request refused ({retry_exc.code}) after CPU fallback: "
+                        f"{retry_detail or retry_exc.reason}"
+                    ) from retry_exc
+                except urllib.error.URLError as retry_exc:
+                    raise OllamaError(f"Ollama server unreachable at {self.url}: {retry_exc.reason}") from retry_exc
+            else:
+                raise OllamaError(f"inference request refused ({exc.code}): {failure}") from exc
         except urllib.error.URLError as exc:
             raise OllamaError(f"Ollama server unreachable at {self.url}: {exc.reason}") from exc
 

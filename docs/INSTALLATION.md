@@ -88,15 +88,19 @@ sudo journalctl -u kiloframe -f
 
 The installer detects when `systemctl` exists but systemd is not actually running. It
 still installs KiloFrame and creates the runtime directory, but cannot register a boot
-service. Start the daemon under your process supervisor, or for a temporary session:
+service. Its CLI controls the detached daemon directly:
 
 ```bash
-sudo -u kiloframe env PYTHONPATH=/opt/kiloframe/app/src python3 -m kiloframe.daemon
+sudo kiloframe start
+sudo kiloframe restart
+sudo kiloframe stop
+kiloframe logs
 ```
 
-Keep that process running, then launch `kiloframe` from an account permitted to use the
-KiloFrame socket. The daemon remains usable without Ollama; configure a server later
-with `kiloframe localset add <name> <url>`.
+`kiloframe status` also prints an exact manual start command for use with another process
+supervisor. Launch the TUI from an account permitted to use the KiloFrame socket. The
+daemon remains usable without Ollama; configure a server later with
+`kiloframe localset add <name> <url>`.
 
 ### Ollama memory tuning
 
@@ -105,6 +109,10 @@ avoids GPU out-of-memory failures on smaller local or remote servers where a mod
 load but its default KV cache cannot. To raise it after confirming the server has enough
 memory, set `KILOFRAME_OLLAMA_CONTEXT_TOKENS` in the daemon environment (for example
 `4096`) and restart the daemon.
+
+If Ollama's automatic GPU placement returns a CUDA out-of-memory error, KiloFrame makes
+one bounded retry of the same selected model with Ollama's official `num_gpu: 0` request
+option. The TUI reports that CPU recovery live; another failure is returned honestly.
 
 ## Uninstall
 

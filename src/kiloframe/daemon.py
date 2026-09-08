@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import signal
 
 from .agent import Agent
@@ -22,6 +23,8 @@ from .tools import ToolRegistry
 async def serve() -> None:
     settings = Settings()
     settings.ensure_user_dirs()
+    pid_path = settings.runtime_dir / "kiloframe.pid"
+    pid_path.write_text(f"{os.getpid()}\n", encoding="ascii")
     logging.basicConfig(
         filename=settings.log_dir / "kiloframe.log",
         level=logging.INFO,
@@ -77,6 +80,11 @@ async def serve() -> None:
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
         memory.close()
+        try:
+            if pid_path.read_text(encoding="ascii").strip() == str(os.getpid()):
+                pid_path.unlink()
+        except FileNotFoundError:
+            pass
         log.info("stopped cleanly")
 
 

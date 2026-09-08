@@ -119,6 +119,28 @@ if [[ ! -f /etc/kiloframe/mcp.json ]]; then
     install -m 0600 -o "$KILO_USER" -g "$KILO_GROUP" "$ROOT/config/mcp.preconfigured.json" /etc/kiloframe/mcp.json
 fi
 
+# Older generated configs invoked Context7 through npx on every daemon start. The
+# package is installed globally below, so migrate only that exact old default while
+# preserving every operator-defined server and setting.
+"$PYTHON_BIN" - /etc/kiloframe/mcp.json <<'PY'
+import json
+import os
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+data = json.loads(path.read_text(encoding="utf-8"))
+context7 = (data.get("servers") or {}).get("context7") or {}
+if context7.get("command") == "npx" and context7.get("args") == ["-y", "@upstash/context7-mcp@latest"]:
+    context7["command"] = "context7-mcp"
+    context7["args"] = []
+    temporary = path.with_suffix(".tmp")
+    temporary.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    os.replace(temporary, path)
+PY
+chmod 0600 /etc/kiloframe/mcp.json
+chown "$KILO_USER":"$KILO_GROUP" /etc/kiloframe/mcp.json
+
 # Preconfigure the requested first-party workflow integrations. Their source/command
 # is installed here rather than being left as a documentation-only suggestion. A
 # credentials-bound server remains disabled in mcp.json until its owner supplies a key.

@@ -18,8 +18,9 @@ sudo systemctl restart kiloframe
 sudo journalctl -u kiloframe -n 100 --no-pager
 ```
 
-On a non-systemd host, run the command printed by `kiloframe status` under a supervisor,
-or use the manual command in [Installation](Installation). If the server is unreachable,
+On a non-systemd host, `sudo kiloframe start|stop|restart` controls KiloFrame's detached
+daemon and `kiloframe logs` reads its real log file. The exact manual command printed by
+`kiloframe status` remains available for external supervisors. If the server is unreachable,
 check the configured URL and the network path before restarting KiloFrame; restarting
 the client cannot make a remote Ollama server available.
 

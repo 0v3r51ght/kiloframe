@@ -21,6 +21,9 @@ kiloframe localset remove <name>
 model, and a selected-but-not-loaded model. It prints a systemd or non-systemd recovery
 command appropriate for the host.
 
+In the TUI, `/local models` numbers its results and `/local select <number>` selects that
+entry. A selected but unloaded model is labelled exactly that, never `ready`.
+
 ## Full TUI slash commands
 
 ```text

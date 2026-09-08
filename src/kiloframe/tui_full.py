@@ -25,6 +25,7 @@ import datetime as _dt
 import json
 import re
 import shutil
+import textwrap
 import time
 from pathlib import Path
 from typing import Any
@@ -451,7 +452,7 @@ class KiloApp:
             elif not self.status.get("model"):
                 state = "select a model (/local)"
             elif not self._ollama_running:
-                state = "model ready · not loaded"
+                state = "model selected · not loaded"
             else:
                 state = "ready"
             head = [("class:stat", f" {wave} "), ("class:dim", state)]
@@ -612,9 +613,14 @@ class KiloApp:
             text = line or ""
             if not text:
                 self._bline()
-            while text:
-                self._bline(text[:inner])
-                text = text[inner:]
+                continue
+            for wrapped in textwrap.wrap(
+                text,
+                width=inner,
+                break_long_words=False,
+                break_on_hyphens=False,
+            ):
+                self._bline(wrapped)
         self._append(self._rule() + "\n")
 
     # ---- interaction --------------------------------------------------------
@@ -1307,6 +1313,26 @@ class KiloApp:
         self._spawn(self._refresh_ollama_running())
 
     async def _local_select(self, model: str) -> None:
+        # The model list is deliberately numbered for terminal users, so accept
+        # that number everywhere selection is accepted (including the direct
+        # `/local select 2` form), not only in the interactive picker.
+        if model.strip().isdigit():
+            try:
+                models = await self.client.request("ollama_models")
+            except (ConnectionError, FileNotFoundError, OSError) as exc:
+                self._append(f"\n⚠ {exc}\n")
+                return
+            if isinstance(models, dict):
+                self._append(f"\n⚠ {models.get('error', 'could not list models')}\n")
+                return
+            index = int(model.strip()) - 1
+            if index < 0 or index >= len(models or []):
+                self._append(f"\n⚠ model number {model.strip()} is not in /local models\n")
+                return
+            model = str((models or [])[index].get("name") or "").strip()
+            if not model:
+                self._append(f"\n⚠ model number {index + 1} has no usable name\n")
+                return
         try:
             data = await self.client.request("ollama_select_model", model=model)
         except (ConnectionError, FileNotFoundError, OSError) as exc:
@@ -1465,6 +1491,11 @@ class KiloApp:
                     self.phase = "warming cache (one-off)"
                     self._open_box()
                     self._bline("\u23f3 warming the prompt cache (one-off after a change)")
+                    self._had_work = True
+                elif kind == "runtime_status":
+                    self.phase = "recovering model"
+                    self._open_box()
+                    self._bline(f"\u26a0 {event.get('text', 'model runtime recovery in progress')}")
                     self._had_work = True
                 elif kind == "compaction":
                     self._open_box()

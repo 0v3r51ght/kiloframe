@@ -239,6 +239,11 @@ class TerminalUI:
                 elif kind == "warming":
                     state["phase"] = "warming the model cache"
                     sys.stdout.write(f"\r\033[2K{GREEN}{Box.v}{RESET} {YELLOW}first run after a change: warming the prompt cache, once-off{RESET}\n")
+                elif kind == "runtime_status":
+                    state["phase"] = "recovering model"
+                    sys.stdout.write(
+                        f"\r\033[2K{GREEN}{Box.v}{RESET} {YELLOW}{event.get('text', 'model runtime recovery in progress')}{RESET}\n"
+                    )
                 elif kind == "thinking":
                     # No step number: the animator's rotating word carries the sense of
                     # progress, and a counter that only ever reached 1 read as stuck.

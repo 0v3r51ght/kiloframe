@@ -69,6 +69,10 @@ levels are offered only for model families with a documented level control. Clou
 providers are not presented as supporting it without a verified provider-specific
 control.
 
+After `/local models`, the TUI also accepts its displayed number, for example
+`/local select 2`. Selection and loading are separate states; the status bar says
+`model selected · not loaded` until Ollama actually loads it.
+
 ## CLI Help
 
 ```bash
