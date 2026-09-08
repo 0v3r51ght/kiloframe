@@ -305,12 +305,16 @@ def telegram_command(args: argparse.Namespace, settings: Settings) -> int:
 
     if action == "status":
         token = str(config.get("token", "")).strip()
-        enabled = bool(token) and token != "PASTE_BOT_TOKEN_HERE" and bool(allowed)
-        print(f"telegram   {GREEN + 'enabled' + RESET if enabled else YELLOW + 'disabled' + RESET}")
+        configured = bool(token) and token != "PASTE_BOT_TOKEN_HERE"
+        state = "enabled" if allowed else "awaiting /start"
+        colour = GREEN if configured else YELLOW
+        print(f"telegram   {colour + state if configured else YELLOW + 'disabled'}{RESET}")
         print(f"token      {'set (' + token[:6] + '…)' if token else DIM + 'unset' + RESET}")
         print(f"allowed    {', '.join(map(str, allowed)) if allowed else DIM + 'none' + RESET}")
-        if not enabled:
-            print(f"\n{DIM}enable with: kiloframe telegram set-token <token> && kiloframe telegram allow <chat_id>{RESET}")
+        if not configured:
+            print(f"\n{DIM}enable with: kiloframe telegram set-token <token>{RESET}")
+        elif not allowed:
+            print(f"\n{DIM}users activate their own chat by sending /start to the bot{RESET}")
         return 0
     if action == "set-token":
         config["token"] = args.token.strip()
