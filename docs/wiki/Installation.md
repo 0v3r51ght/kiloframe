@@ -28,13 +28,18 @@ The installer creates the `kiloframe` service account, installs the application 
 command. It adds the sudo-invoking user to the `kiloframe` group; start a new login
 session before using the group-restricted daemon socket.
 
-On a host with operational systemd, the service is enabled. A container may have a
-`systemctl` binary without systemd running; KiloFrame detects that case and does not
-pretend a service was started. Start it under your process supervisor, or temporarily:
+On a host with operational systemd, the service is enabled. The one-line installer also
+starts the detached daemon on a non-systemd host. When running `scripts/install.sh`
+directly in a container or another non-systemd environment, use the built-in controls:
 
 ```bash
-sudo -u kiloframe env PYTHONPATH=/opt/kiloframe/app/src python3 -m kiloframe.daemon
+sudo kiloframe start
+sudo kiloframe restart
+sudo kiloframe stop
 ```
+
+`kiloframe status` prints the exact manual daemon command when an external supervisor is
+preferred.
 
 ## Verify and uninstall
 

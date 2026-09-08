@@ -7,6 +7,12 @@ kiloframe                         open the full TUI
 kiloframe chat "message"          stream one answer
 kiloframe status                  daemon, Ollama, model, runtime and recovery information
 kiloframe doctor                  dependency and health checks
+kiloframe resources               live host capacity profile
+kiloframe model-info              active server and selected model metadata
+kiloframe version                 application and runtime versions
+kiloframe logs [-n LINES]         service or detached-daemon logs
+kiloframe start|stop|restart      control the daemon
+kiloframe benchmark               run a short real inference benchmark
 kiloframe local status|models|ps  inspect the active Ollama server
 kiloframe local pull <model>      pull onto the active server
 kiloframe local select <model>    select a model the active server reports downloaded
@@ -15,6 +21,7 @@ kiloframe localset list           list configured servers
 kiloframe localset add <name> <url>
 kiloframe localset default <name>
 kiloframe localset remove <name>
+kiloframe telegram status         inspect the optional Telegram bridge
 ```
 
 `kiloframe status` distinguishes a stopped daemon, an unreachable server, no selected

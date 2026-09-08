@@ -1,5 +1,3 @@
-<p align="center"><img src="assets/kiloframe-mascot.svg" width="132" alt="Kilo, the KiloFrame mascot"></p>
-
 ```text
 ██╗  ██╗██╗██╗      ██████╗ ███████╗██████╗  █████╗ ███╗   ███╗███████╗
 ██║ ██╔╝██║██║     ██╔═══██╗██╔════╝██╔══██╗██╔══██╗████╗ ████║██╔════╝
@@ -7,7 +5,7 @@
 ██╔═██╗ ██║██║     ██║   ██║██╔══╝  ██╔══██╗██╔══██║██║╚██╔╝██║██╔══╝
 ██║  ██╗██║███████╗╚██████╔╝██║     ██║  ██║██║  ██║██║ ╚═╝ ██║███████╗
 ╚═╝  ╚═╝╚═╝╚══════╝ ╚═════╝ ╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝     ╚═╝╚══════╝
-                         Developed by Citadel Research
+  Developed by Citadel Research
 ```
 
 KiloFrame is a local-first terminal AI agent. It uses an Ollama server you configure
