@@ -497,10 +497,10 @@ class KiloApp:
             ("class:panel.key", " thinking "), ("", f"{self.thinking if self.thinking != 'off' else 'auto'}\n"),
             ("class:panel.key", " effort   "), ("", f"{self.effort}\n\n"),
 
-            ("class:panel.title", " HOST · LIVE\n\n"),
-            ("class:panel.key", " cpu      "), ("class:on", f"{host.get('cpu_percent', '—')}%\n"),
-            ("class:panel.key", " memory   "), ("class:on", f"{host.get('memory_used_mb', '—')}/{host.get('memory_total_mb', '—')} MiB"),
-            ("class:dim", f" · {host.get('memory_percent', '—')}%\n\n"),
+            ("class:panel.title", " HOST · LIVE\n"),
+            ("class:panel.key", " cpu "), ("class:on", f"{host.get('cpu_percent', '—')}%"),
+            ("class:panel.key", "  mem "), ("class:on", f"{host.get('memory_used_mb', '—')}/{host.get('memory_total_mb', '—')} MiB"),
+            ("class:dim", f" ({host.get('memory_percent', '—')}%)\n\n"),
 
             ("class:panel.title", " TASKS\n\n"),
         ]
@@ -515,7 +515,7 @@ class KiloApp:
 
         rows.append(("class:panel.title", " KILO'S WORK\n\n"))
         if self._work_items:
-            for text, done in self._work_items[-12:]:
+            for text, done in self._work_items[-4:]:
                 mark = "✓" if done else "●"
                 cls = "class:panel.hi" if done else "class:kilo"
                 rows.append((cls, f" {mark} {text[:30]}\n"))
@@ -533,7 +533,7 @@ class KiloApp:
         bg = len(getattr(self, "_bg_tasks", ()))
         rows.append(("class:panel.key", " background ")); rows.append(("", f"{bg}\n"))
         if self._ollama_running:
-            for m in self._ollama_running[:4]:
+            for m in self._ollama_running[:2]:
                 rows.append(("class:kilo", f" ▶ {str(m.get('name', ''))[:26]}\n"))
         else:
             rows.append(("class:dim", " no models loaded\n"))
@@ -544,11 +544,10 @@ class KiloApp:
                              f"{len(server.get('tools', []))} tools\n" if server["state"] == "connected" else f"{server['state']}\n"))
 
         rows += [
-            ("", "\n"),
-            ("class:panel.title", " MEMORY\n\n"),
-            ("class:panel.key", " sessions "), ("", f"{mem.get('sessions', '?')}\n"),
-            ("class:panel.key", " facts    "), ("", f"{mem.get('facts', '?')}\n"),
-            ("class:panel.key", " skills   "), ("", f"{mem.get('skills', '?')}\n"),
+            ("", "\n"), ("class:panel.title", " MEMORY\n"),
+            ("class:panel.key", " sessions "), ("", f"{mem.get('sessions', '?')}"),
+            ("class:panel.key", " · facts "), ("", f"{mem.get('facts', '?')}"),
+            ("class:panel.key", " · skills "), ("", f"{mem.get('skills', '?')}\n"),
         ]
         return rows
 

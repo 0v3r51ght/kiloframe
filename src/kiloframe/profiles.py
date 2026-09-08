@@ -343,9 +343,9 @@ _ROUTES: tuple[tuple[str, tuple[str, ...]], ...] = (
 
 def select(text: str, explicit: str | None = None) -> Profile:
     """Choose a profile for a request. An explicitly named profile always wins; otherwise
-    match keywords, and fall back to the conversation agent when nothing clearly fits — so
-    even an unrouted request gets intent-understanding and follow-through discipline instead
-    of the model being left to trail off."""
+    match keywords, and fall back to the compact general profile when nothing clearly fits.
+    This keeps ordinary conversation fast on CPU-only local models while explicit and
+    task-matched specialist routes retain their full operating instructions."""
     # Friendly aliases so a user's natural word reaches the right specialist.
     _ALIASES = {
         "hacking": "security",
@@ -366,4 +366,4 @@ def select(text: str, explicit: str | None = None) -> Profile:
     for name, words in _ROUTES:
         if any(word in lowered for word in words):
             return PROFILES[name]
-    return ORCHESTRATOR
+    return GENERAL
