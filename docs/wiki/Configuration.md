@@ -46,6 +46,14 @@ key entry, while `/model` queries and changes its model where supported. Provide
 is explicit. Removing or breaking the provider configuration must not make KiloFrame send
 an Ollama prompt elsewhere.
 
+The built-in catalog includes OpenRouter, OpenAI, Groq, Together, DeepInfra, DeepSeek,
+Moonshot/Kimi, NVIDIA NIM, Venice, Z.AI, Scaleway, Cohere, Anthropic, Google Gemini,
+Mistral, Cerebras, Fireworks, SambaNova, Hugging Face, Nebius, Hyperbolic, and
+ModelScope. Entries use documented HTTPS endpoints; a provider still requires the
+operator's key and a valid model. `/models` discovery is used where no safe default is
+known. Anthropic uses its native Messages protocol; compatible providers use their
+documented OpenAI-compatible chat/tool protocol.
+
 The `/cloud` picker also offers **Custom endpoint**. It collects a short provider name,
 an OpenAI-compatible `https://` base URL (normally ending in `/v1`), the served model
 name, and an API key. The key is sent through the standard `Authorization: Bearer` header.
