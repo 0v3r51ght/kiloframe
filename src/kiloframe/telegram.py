@@ -851,7 +851,7 @@ class TelegramBridge:
             (
                 "setMyDescription",
                 {
-                    "description": "Kilo is Sir's Kilobase assistant: local by default, cloud only when selected, with persistent memory and approval-gated machine tools."
+                    "description": "KiloFrame, developed by Citadel Research: Kilo powered by the selected AI provider, with persistent memory and approval-gated machine tools."
                 },
             ),
         )

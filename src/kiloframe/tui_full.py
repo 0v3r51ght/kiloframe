@@ -131,6 +131,15 @@ STYLE = Style.from_dict({
     "pygments.punctuation": "#d7d7d7",
     "toolline": "#7a7a7a",
     "prompt": "#00ff66 bold",
+    # Completion menus do not inherit the input style. Theme all visible surfaces
+    # so slash suggestions use KiloFrame's dark/green palette.
+    "completion-menu": "bg:#101510 #d7d7d7",
+    "completion-menu.completion": "bg:#101510 #d7d7d7",
+    "completion-menu.completion.current": "bg:#00aa4f #000000 bold",
+    "completion-menu.meta": "bg:#101510 #7a7a7a",
+    "completion-menu.meta.completion.current": "bg:#00aa4f #000000",
+    "scrollbar.background": "bg:#101510",
+    "scrollbar.button": "bg:#00aa4f",
 })
 
 
