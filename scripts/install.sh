@@ -218,7 +218,14 @@ if has_systemd; then
 else
     # The daemon's socket path must be writable for an init-system-independent run.
     install -d -m 0750 -o "$KILO_USER" -g "$KILO_GROUP" /run/kiloframe
-    echo "systemd is not operational; installation is complete. Start the daemon with:"
-    echo "  sudo -u $KILO_USER env PYTHONPATH=/opt/kiloframe/app/src $PYTHON_BIN -m kiloframe.daemon"
+    if command -v runuser >/dev/null 2>&1; then
+        echo "systemd is not operational; starting the daemon as $KILO_USER."
+        runuser -u "$KILO_USER" -- env PYTHONPATH=/opt/kiloframe/app/src \
+            nohup "$PYTHON_BIN" -m kiloframe.daemon >>/var/log/kiloframe/daemon.log 2>&1 &
+        sleep 1
+    else
+        echo "systemd is not operational; start the daemon with:"
+        echo "  sudo -u $KILO_USER env PYTHONPATH=/opt/kiloframe/app/src $PYTHON_BIN -m kiloframe.daemon"
+    fi
 fi
 echo "KiloFrame installed. Run: kiloframe (then /local to add an Ollama server or /cloud for hosted models)"
