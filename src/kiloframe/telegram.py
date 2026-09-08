@@ -847,7 +847,7 @@ class TelegramBridge:
             (
                 "setMyShortDescription",
                 {
-                    "short_description": "Private local AI with explicit cloud routing and specialist agents."
+                    "short_description": "Kilo's agent framework with local Ollama, cloud providers, tools, and specialists."
                 },
             ),
             (
