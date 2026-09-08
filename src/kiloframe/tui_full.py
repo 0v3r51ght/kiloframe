@@ -976,7 +976,7 @@ class KiloApp:
         if not self._sessions:
             self._append("\n— no past sessions yet —\n")
             return
-        lines = ["\npast sessions — /chat <n> to resume:"]
+        lines = ["\npast sessions — choose one below to resume:"]
         for i, s in enumerate(self._sessions, 1):
             title = " ".join((s.get("title") or "").split()) or "(untitled)"
             stamp = s.get("updated_at")
@@ -1022,10 +1022,7 @@ class KiloApp:
         """List past chats and arm a delete selector: the next number(s) typed are removed."""
         await self._list_chats()
         if self._sessions:
-            self._append(
-                "  → type the number(s) to DELETE (e.g. 2 or 1,3,4), 'all' to wipe every "
-                "chat, or anything else to cancel:\n"
-            )
+            self._append("  choose one conversation below to delete; Esc cancels.\n")
             self._pending = {"kind": "chat_delete"}
             self._choose("Delete conversation", [(str(i), " ".join(str(s.get("title") or "Untitled").split())[:90])
                          for i, s in enumerate(self._sessions, 1)], "chat_delete")
@@ -1081,12 +1078,7 @@ class KiloApp:
             "label": "Custom endpoint", "model": "OpenAI-compatible HTTPS"
         }))
         configured = set(data.get("configured", []))
-        lines = ["\n☁ choose a cloud provider — type its number, then paste your API key:"]
-        for i, (name, meta) in enumerate(self._cloud_options, 1):
-            mark = "  ✓ configured" if name in configured else ""
-            lines.append(f"  {i:>2}. {meta['label']:<12} {meta.get('model','')}{mark}")
-        lines.append("  (type the number or name · blank line cancels)")
-        self._append("\n".join(lines) + "\n")
+        self._append("\n☁ choose a cloud provider below. Type part of its name and press Enter to filter; use ↑/↓ and Enter to select.\n")
         self._pending = {"kind": "cloud_pick", "question": pending_question, "force_key": force_key}
         self._choose("Cloud provider", [(name, meta["label"] + (" ✓ configured" if name in configured else ""))
                      for name, meta in self._cloud_options], "cloud_pick", question=pending_question, force_key=force_key)
@@ -1165,8 +1157,8 @@ class KiloApp:
                 self._pending = {"kind": "local_pull"}
             elif arg == "select":
                 await self._local_models()
-                self._append("— type the number (or name) of the model to use:\n")
-                self._pending = {"kind": "local_select"}
+            elif arg == "load":
+                await self._local_models(load_after_select=True)
             elif arg == "u":
                 await self._local_unload()
             else:
@@ -1474,11 +1466,7 @@ class KiloApp:
             self._append("\n— no models returned; use /model <name> —\n")
             return
         self._model_options = models
-        lines = [f"\n☁ {info['default']} · current {info.get('model') or '(unset)'} — type a number to switch:"]
-        for i, m in enumerate(models, 1):
-            lines.append(f"  {i:>2}. {m}")
-        lines.append("  (blank line cancels)")
-        self._append("\n".join(lines) + "\n")
+        self._append(f"\n☁ {info['default']} · current {info.get('model') or '(unset)'} — choose a model below.\n")
         self._pending = {"kind": "model_pick"}
         self._choose("Cloud model", [(str(i), model) for i, model in enumerate(models, 1)], "model_pick")
 
@@ -1495,13 +1483,7 @@ class KiloApp:
             f"\n◆ Ollama route\n"
             f"  server  {server}\n"
             f"  model   {model}\n"
-            f"  m) list downloaded models\n"
-            f"  p) list running models\n"
-            f"  select) choose a model to use\n"
-            f"  load)   preload a selected/downloaded model\n"
-            f"  pull)   download a model (e.g. llama3.2)\n"
-            f"  u)      unload the selected model\n"
-            f"  (blank cancels)\n"
+            f"  choose an action below.\n"
         )
         self._pending = {"kind": "local_menu"}
         self._choose("Ollama", [("select", "Select a downloaded model"), ("m", "Downloaded models"),
@@ -1538,7 +1520,7 @@ class KiloApp:
             self._append("\n— no models downloaded on this server —\n"
                          "   run /local → pull to download one\n")
             return
-        lines = ["\n◆ models on this server:"]
+        lines = ["\n◆ models on this server — choose below to select:"]
         for i, m in enumerate(models, 1):
             size = m.get("size", 0) // (1024 * 1024)
             detail = m.get("details") or {}
