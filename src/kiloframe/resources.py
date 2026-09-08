@@ -24,18 +24,6 @@ def _meminfo() -> dict[str, int]:
     return result
 
 
-def _cpu_times() -> tuple[int, int] | None:
-    """Return aggregate Linux CPU total and idle ticks without dependencies."""
-    try:
-        fields = Path("/proc/stat").read_text(encoding="ascii").splitlines()[0].split()
-        if not fields or fields[0] != "cpu":
-            return None
-        values = [int(value) for value in fields[1:]]
-        return sum(values), values[3] + (values[4] if len(values) > 4 else 0)
-    except (OSError, ValueError, IndexError):
-        return None
-
-
 def _cgroup_available() -> int | None:
     root = Path("/sys/fs/cgroup")
     try:
@@ -97,7 +85,6 @@ class ResourceManager:
 
     def __init__(self, settings: Settings):
         self.settings = settings
-        self._last_cpu = _cpu_times()
 
     def profile(self) -> ResourceProfile:
         mem = _meminfo()
@@ -139,23 +126,3 @@ class ResourceManager:
             available = min(available, cgroup)
         available_mb = available // MIB
         return available_mb >= 320, available_mb
-
-    def live_usage(self) -> dict[str, int | None]:
-        """A cheap daemon-host sample for UI refreshes, independent of the model."""
-        mem = _meminfo()
-        total = mem.get("MemTotal", 0)
-        available = mem.get("MemAvailable", mem.get("MemFree", 0))
-        cgroup = _cgroup_available()
-        if cgroup is not None:
-            available = min(available, cgroup)
-        current = _cpu_times()
-        cpu_percent: int | None = None
-        if current and self._last_cpu:
-            delta_total, delta_idle = current[0] - self._last_cpu[0], current[1] - self._last_cpu[1]
-            if delta_total > 0:
-                cpu_percent = max(0, min(100, round(100 * (delta_total - delta_idle) / delta_total)))
-        self._last_cpu = current
-        used = max(0, total - available)
-        return {"cpu_percent": cpu_percent, "memory_used_mb": used // MIB,
-                "memory_total_mb": total // MIB,
-                "memory_percent": round(100 * used / total) if total else None}

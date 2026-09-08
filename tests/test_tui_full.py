@@ -18,14 +18,6 @@ except ModuleNotFoundError as exc:
 
 @unittest.skipIf(KiloApp is None, "prompt_toolkit is not installed in the raw source-test environment")
 class FullTUIDirectChatTests(unittest.IsolatedAsyncioTestCase):
-    def test_sidebar_renders_live_daemon_host_usage(self):
-        app = KiloApp(SimpleNamespace(socket_path=Path("/tmp/in-memory.sock")))
-        app.status = {"host": {"cpu_percent": 12, "memory_used_mb": 1024, "memory_total_mb": 4096, "memory_percent": 25}}
-        rendered = "".join(text for _style, text in app._sidebar_text())
-        self.assertIn("HOST · LIVE", rendered)
-        self.assertIn("12%", rendered)
-        self.assertIn("1024/4096 MiB", rendered)
-
     def test_slash_completion_menu_uses_kiloframe_palette(self):
         """The popup must be themed explicitly, not left to terminal defaults."""
         current = TUI_STYLE.get_attrs_for_style_str(
