@@ -1,5 +1,13 @@
 # Commands
 
+## Command interaction
+
+The TUI publishes one canonical slash-command list through `/commands`; compatibility
+aliases are accepted but are not duplicated in the picker. Use Up/Down and Enter for
+menus. `/localset`, `/cloud`, `/model`, `/agent`, `/effort`, `/thinking`, `/private`,
+`/chats`, and `/mcp` use selection first and only ask for free text when an address,
+credential, custom model, or other value is genuinely required.
+
 ## Shell CLI
 
 | Command | Purpose |
@@ -12,7 +20,7 @@
 | `kiloframe model-info` | active Ollama endpoint and selected model |
 | `kiloframe version` | application/runtime version information |
 | `kiloframe logs -n 100` | recent systemd or detached-daemon log |
-| `kiloframe start`, `stop`, `restart` | daemon lifecycle |
+| `sudo kiloframe start`, `stop`, `restart` | daemon lifecycle; normal use is `kiloframe` |
 | `kiloframe benchmark` | time a real short inference |
 
 ### Ollama CLI
@@ -52,7 +60,8 @@ the displayed number where documented.
 - `/cancel` — cancel the active request and clear its queue.
 - `/new` — start a fresh session.
 - `/clear` — clear the current rendered screen.
-- `/quit`, `/exit`, `/q` — leave the TUI; the daemon remains active.
+- `/quit` — leave the TUI; the daemon remains active.
+- `/mcp` — inspect live MCP state and select a connected server to view its discovered tools.
 
 ### Local/remote Ollama
 
@@ -87,7 +96,6 @@ the displayed number where documented.
 - `/cloud QUESTION` — one explicit cloud request.
 - `/model` — fetch the selected provider's model catalogue.
 - `/model NAME_OR_NUMBER` — select a provider model.
-- `/mcp` — inspect enabled, disabled, and failed MCP servers and their discovered tools.
 - `/private on|status|rotate|off` — control fail-closed Tor routing for web operations.
 
 No cloud provider is required. `/switch` reports when none exists instead of implying a
@@ -96,7 +104,8 @@ connection. `/thinking` does not claim cloud support without a verified control.
 ### Sessions
 
 - `/chats` — list recent sessions.
-- `/chats` — list and arm number selection, then choose a session.
+- `/kilochats` — list and arm number selection.
+- `/chat N` — resume a listed session.
 - `/delete`, `/delete N`, `/delete N,M`, `/delete all` — delete chosen history.
 
 Conversation compaction is automatic and visible. Persistent history remains in SQLite;

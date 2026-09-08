@@ -1,14 +1,26 @@
 # KiloFrame
 
-KiloFrame is a local-first terminal AI agent built around a full-screen Kilo/Sir
-conversation interface. Its daemon connects to an Ollama server you choose—on the same
-machine or elsewhere—and can use a separately configured cloud route only when you
-explicitly request it.
+KiloFrame is Kilobyte (“Kilo”): a full-screen terminal agent framework developed by
+Citadel Research. Its daemon connects Kilo to the AI brain you choose—an Ollama server
+on the same machine or elsewhere, or an explicitly configured cloud provider. The model
+route is always explicit; KiloFrame never silently substitutes a provider or model.
 
 The interface is evidence-based. The sidebar and footer distinguish configuration from
 live state: an endpoint is not shown online unless it responds; a selected model is not
 shown loaded unless Ollama reports it in `/api/ps`; and failures, tool activity, recovery,
 and conversation compaction appear live inside Kilo's response box.
+
+## Current release behavior
+
+- Run `kiloframe` as the normal user. It connects to the same rootless daemon as the
+  administrative command; sudo is only needed for service lifecycle operations.
+- `/localset` is a guided, selectable setup flow for local or remote Ollama endpoints.
+- `/mcp` shows the daemon's live MCP inventory, including connected, disabled, and failed
+  servers plus their discovered tool counts.
+- The output scrollbar responds to click, drag, wheel, PageUp/PageDown, and keeps the
+  viewed position when new output arrives.
+- Kilo's runtime directive applies consistently across model switches, tools, recovery,
+  multi-step work, and specialist-agent execution.
 
 ## Quick start
 

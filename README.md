@@ -8,12 +8,37 @@
   Developed by Citadel Research
 ```
 
-KiloFrame is Kilo's terminal agent framework. It uses an Ollama server you configure
-(on the same machine or a remote host) and can use separately configured cloud
-providers. The full TUI keeps Kilo’s streamed work, tool activity, and answer in one
-response box, with a sidebar for real route, model, task, context, and process state.
-The `/cloud` picker supports built-in services and custom OpenAI-compatible HTTPS
-endpoints; cloud routing remains explicit and requires the operator's credentials.
+KiloFrame is Kilobyte (“Kilo”): a full-screen terminal agent framework developed by
+Citadel Research. It runs Kilo through the AI brain you select—an Ollama server on this
+machine or another host, or an explicitly configured cloud provider. It is not tied to
+one model or one provider, and it never silently switches a request to a different route.
+
+The TUI preserves Kilo's existing visual design: a dedicated input line, bordered output
+screen, live task/tool activity, sidebar, selectable slash-command workflows, and a
+clickable output scrollbar. Kilo's runtime directive is enforced for local models, cloud
+models, tools, continuation turns, and specialist-agent handoffs.
+
+## What KiloFrame contains
+
+| Area | Included capability |
+|---|---|
+| Model routes | Local or remote Ollama; explicit cloud route and model switching |
+| Providers | OpenRouter, OpenAI, Anthropic, Gemini, Groq, Together, DeepInfra, DeepSeek, Moonshot/Kimi, NVIDIA NIM, Venice, Z.AI, Scaleway, Cohere, Mistral, Cerebras, Fireworks, SambaNova, Hugging Face, Nebius, Hyperbolic, and ModelScope |
+| Agent runtime | Persistent conversations, bounded context compaction, specialist selection, multi-step tool loops, failure recovery, and completion checks |
+| Tools | Permission-gated filesystem, shell, web, memory, and MCP tools with structured results |
+| MCP | Serena and Context7 enabled by default; GitHub, Exa, and Firecrawl present but disabled until configured |
+| Operations | Rootless daemon service account, normal `kiloframe` client, installer, status, doctor, logs, restart, and uninstall |
+
+## Start here
+
+After installation, run `kiloframe`—not `sudo kiloframe`. The installer starts the
+rootless daemon on systemd and non-systemd hosts. Use `kiloframe status` to confirm the
+same daemon/socket is visible to the normal client.
+
+Inside KiloFrame, use `/localset` for a guided Ollama URL setup, `/mcp` to see every MCP
+server and discovered tool, and `/commands` for the canonical command list. Commands
+with choices use arrow-key selection and Enter; text is requested only for values such as
+an endpoint, model name, or API key.
 
 ## Install
 
@@ -27,11 +52,11 @@ cd kiloframe
 sudo ./scripts/install.sh
 ```
 
-The one-line installer installs KiloFrame, starts or restarts its daemon, and prints the
-resulting live status; it does not download a model. On a normal systemd host it enables
-the daemon. In a container or another non-systemd environment,
-`sudo kiloframe start|stop|restart` controls the detached daemon and status prints the
-exact supervisor command; see [Installation](docs/INSTALLATION.md).
+The one-line installer installs KiloFrame, starts or restarts its rootless daemon, and
+prints the resulting live status; it does not download a model. On a normal systemd host
+it enables the daemon. On a non-systemd host it starts the same service account daemon
+directly. `sudo kiloframe start|stop|restart` remains available for service control, but
+normal use is simply `kiloframe`; see [Installation](docs/INSTALLATION.md).
 
 ## First run
 

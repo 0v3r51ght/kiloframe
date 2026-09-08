@@ -54,6 +54,20 @@ a failed retry remains visible.
 - enter `/local status` inside the TUI, but `kiloframe local status` in a shell;
 - use `/commands` for the registered in-app list.
 
+## Output does not stay where I scrolled
+
+The output pane has a visible right-side scrollbar. Click above/below its thumb to step,
+click or drag the thumb to move through the transcript, use the mouse wheel, or use
+PageUp/PageDown. New output follows only while you are at the bottom; when you scroll
+back, KiloFrame preserves your reading position.
+
+## I cannot see MCP servers
+
+Run `/mcp` in the TUI. It asks the daemon for the actual registry and shows both enabled
+and disabled entries. A connected entry lists its discovered tool count; a failed entry
+shows failure rather than pretending it is available. If a required server is not
+connected, inspect `kiloframe logs -n 200`, then run `sudo kiloframe restart`.
+
 ## Required integration unavailable
 
 ```bash

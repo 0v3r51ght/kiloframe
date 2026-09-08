@@ -25,12 +25,15 @@ returns nonzero.
 git clone https://github.com/0v3r51ght/kiloframe
 cd kiloframe
 sudo ./scripts/install.sh
-sudo kiloframe restart
+kiloframe status
 ```
 
 The installer provisions the service account, command wrapper, application, config/data
 paths, daemon unit/runtime directory, and required integrations. Existing configuration
-and SQLite data are preserved on reinstall.
+and SQLite data are preserved on reinstall. It starts the rootless `kiloframe` daemon on
+both systemd and non-systemd hosts. Open a new login session after installation if the
+installer added your account to the `kiloframe` group; ordinary operation is then simply
+`kiloframe`, without sudo.
 
 ## Installed paths
 
