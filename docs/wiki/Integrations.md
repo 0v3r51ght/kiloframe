@@ -72,6 +72,10 @@ not make the endpoint active unless the operator selects it.
 - MCP tools are not exposed to remote Telegram callers.
 - One failed optional server is skipped and logged; core startup continues.
 
+The TUI `/mcp` command queries the daemon's live registry, showing each server's
+connected/disabled/failed state and discovered tool count. It is the authoritative view;
+the sidebar shows the same state when the terminal is wide enough.
+
 ## Inspect and repair
 
 ```bash

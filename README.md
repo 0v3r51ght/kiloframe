@@ -8,7 +8,7 @@
   Developed by Citadel Research
 ```
 
-KiloFrame is a local-first terminal AI agent. It uses an Ollama server you configure
+KiloFrame is Kilo's terminal agent framework. It uses an Ollama server you configure
 (on the same machine or a remote host) and can use separately configured cloud
 providers. The full TUI keeps Kilo’s streamed work, tool activity, and answer in one
 response box, with a sidebar for real route, model, task, context, and process state.

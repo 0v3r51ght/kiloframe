@@ -87,6 +87,7 @@ the displayed number where documented.
 - `/cloud QUESTION` — one explicit cloud request.
 - `/model` — fetch the selected provider's model catalogue.
 - `/model NAME_OR_NUMBER` — select a provider model.
+- `/mcp` — inspect enabled, disabled, and failed MCP servers and their discovered tools.
 - `/private on|status|rotate|off` — control fail-closed Tor routing for web operations.
 
 No cloud provider is required. `/switch` reports when none exists instead of implying a
@@ -95,8 +96,7 @@ connection. `/thinking` does not claim cloud support without a verified control.
 ### Sessions
 
 - `/chats` — list recent sessions.
-- `/kilochats` — list and arm number selection.
-- `/chat N` — resume a listed session.
+- `/chats` — list and arm number selection, then choose a session.
 - `/delete`, `/delete N`, `/delete N,M`, `/delete all` — delete chosen history.
 
 Conversation compaction is automatic and visible. Persistent history remains in SQLite;
