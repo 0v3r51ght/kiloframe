@@ -23,7 +23,7 @@ class TelegramConfigTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as raw:
             path = _config(raw, {"token": "secret", "allowed_chat_ids": []})
             config = TelegramBridge(path, object()).config()  # type: ignore[arg-type]
-            self.assertEqual(config, {"token": "secret", "allowed": set(), "pairing": True})
+            self.assertEqual(config, {"token": "secret", "allowed": set(), "awaiting_start": True})
 
     def test_start_enrollment_persists_chat_id(self):
         with tempfile.TemporaryDirectory() as raw:

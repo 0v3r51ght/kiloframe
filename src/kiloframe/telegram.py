@@ -63,7 +63,7 @@ class TelegramBridge:
         # A valid token enables self-service onboarding.  The first /start from a
         # chat atomically adds that chat to the persistent allow-list; ordinary
         # messages from unknown chats still do nothing.
-        return {"token": token, "allowed": allowed, "pairing": not bool(allowed)}
+        return {"token": token, "allowed": allowed, "awaiting_start": not bool(allowed)}
 
     def enroll(self, chat_id: int) -> None:
         """Persist an explicit /start opt-in without losing concurrent config edits."""
@@ -893,8 +893,8 @@ class TelegramBridge:
                     self.offset = 0
                     await self._publish_bot_ui(token)
                     published_token = token
-                    log.info("telegram bridge %s for %d authorised chat(s)",
-                             "in pairing mode" if config.get("pairing") else "enabled", len(allowed))
+                    log.info("telegram bridge %s for %d active chat(s)",
+                             "awaiting /start" if config.get("awaiting_start") else "enabled", len(allowed))
                 try:
                     response = await asyncio.to_thread(
                         self._call,
