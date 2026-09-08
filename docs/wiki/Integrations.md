@@ -51,7 +51,7 @@ concrete browser workflow on its target host.
 | Exa MCP | disabled | external API key required |
 | GitHub MCP | disabled | authentication required; not needed for local launch |
 | Firecrawl MCP | disabled | external credentials/service required |
-| Telegram | safe pairing after token setup | bot token required; no chat can run agent actions until explicitly allowed |
+| Telegram | self-service after token setup | bot token required; each user activates their own chat with `/start` |
 | Cloud providers | absent | provider API key required |
 
 The default MCP registry contains disabled entries so operators can configure them without
@@ -94,14 +94,10 @@ Look for successful MCP initialization and a nonzero discovered-tool count in th
 log. Rerun the installer to repair required packages. Configure credentials only in
 protected runtime configuration—never in the repository or Wiki.
 
-## Telegram pairing
+## Telegram self-service activation
 
 After storing a real bot token with `/botkey` or `sudo kiloframe telegram set-token`, the
-bridge starts even when no chat is yet allowed. This is **safe pairing mode**: a sender may
-use `/start` or `/id` and receives only their own chat ID and the exact administrator command
-needed to allow it. The bridge does not send prompts, invoke tools, or disclose status to
-that sender until an administrator runs `sudo kiloframe telegram allow CHAT_ID`.
-
-Use `sudo kiloframe telegram status` to review the allow-list. This requires a real incoming
-`/start` from the intended Telegram account; KiloFrame cannot infer a private Telegram chat ID
-without Telegram delivering an update.
+bridge starts even when no chat is yet allowed. A Telegram user activates their own chat by
+sending `/start`; KiloFrame records that chat ID and immediately sends the normal introduction.
+Messages from a chat that has not sent `/start` are ignored. Use
+`sudo kiloframe telegram status` to review the resulting allow-list.

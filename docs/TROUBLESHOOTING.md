@@ -146,11 +146,10 @@ not be diagnosed as a failed core installation.
 
 ## Telegram bot does not answer
 
-With a configured token and an empty allow-list, the bridge deliberately enters safe pairing
-mode. Send `/start` to the bot from the intended account; it replies with that account's chat
-ID and the `sudo kiloframe telegram allow CHAT_ID` command. No ordinary chat or tool action is
-accepted before that explicit authorization. Check `kiloframe logs -n 200` for the pairing-mode
-startup line and `sudo kiloframe telegram status` for authorized chat IDs.
+With a configured token and an empty allow-list, send `/start` from the intended account.
+KiloFrame records that chat ID and activates the chat immediately. Ordinary messages from a chat
+that has not sent `/start` are ignored. Check `kiloframe logs -n 200` for the enrollment line and
+`sudo kiloframe telegram status` for activated chat IDs.
 
 ## Configuration damaged or invalid
 

@@ -19,11 +19,18 @@ def _config(raw: str, payload: dict) -> Path:
 
 
 class TelegramConfigTests(unittest.TestCase):
-    def test_empty_allowlist_enters_safe_pairing_mode(self):
+    def test_empty_allowlist_enters_start_enrollment_mode(self):
         with tempfile.TemporaryDirectory() as raw:
             path = _config(raw, {"token": "secret", "allowed_chat_ids": []})
             config = TelegramBridge(path, object()).config()  # type: ignore[arg-type]
             self.assertEqual(config, {"token": "secret", "allowed": set(), "pairing": True})
+
+    def test_start_enrollment_persists_chat_id(self):
+        with tempfile.TemporaryDirectory() as raw:
+            path = _config(raw, {"token": "secret", "allowed_chat_ids": []})
+            bridge = TelegramBridge(path, object())  # type: ignore[arg-type]
+            bridge.enroll(42)
+            self.assertEqual(bridge.config()["allowed"], {42})  # type: ignore[index]
 
     def test_disabled_without_token(self):
         with tempfile.TemporaryDirectory() as raw:

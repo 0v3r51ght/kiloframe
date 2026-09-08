@@ -60,10 +60,21 @@ class TelegramBridge:
         if not token or token == "PASTE_BOT_TOKEN_HERE":
             log.warning("telegram config has no bot token; staying disabled")
             return None
-        # A valid token with no allow-list is pairing mode, not a dead bot. It may
-        # disclose only the sender's own chat id in response to /start or /id; it
-        # never runs an agent task or exposes status/tools until explicitly allowed.
+        # A valid token enables self-service onboarding.  The first /start from a
+        # chat atomically adds that chat to the persistent allow-list; ordinary
+        # messages from unknown chats still do nothing.
         return {"token": token, "allowed": allowed, "pairing": not bool(allowed)}
+
+    def enroll(self, chat_id: int) -> None:
+        """Persist an explicit /start opt-in without losing concurrent config edits."""
+        config = json.loads(self.config_path.read_text(encoding="utf-8"))
+        current = {int(item) for item in config.get("allowed_chat_ids", [])}
+        current.add(int(chat_id))
+        config["allowed_chat_ids"] = sorted(current)
+        temp = self.config_path.with_suffix(self.config_path.suffix + ".tmp")
+        temp.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
+        temp.chmod(0o600)
+        temp.replace(self.config_path)
 
     # Shown under the message box by Telegram once registered with setMyCommands.
     COMMANDS = (
@@ -932,18 +943,19 @@ class TelegramBridge:
                         if not text:
                             continue
                         if chat_id not in allowed:
-                            command = (text.strip().split() or [""])[0].lower()
-                            if config.get("pairing") and command in {"/start", "/id"}:
-                                await self.send(
-                                    token, chat_id,
-                                    "🔐 <b>KiloFrame pairing</b>\n"
-                                    f"Your Telegram chat id is <code>{chat_id}</code>.\n"
-                                    "On the KiloFrame host, run:\n"
-                                    f"<code>sudo kiloframe telegram allow {chat_id}</code>\n"
-                                    "Then send <code>/start</code> again.",
-                                )
+                            command = (text.strip().split() or [""])[0].lower().split("@", 1)[0]
+                            if command == "/start":
+                                try:
+                                    await asyncio.to_thread(self.enroll, chat_id)
+                                except Exception:
+                                    log.exception("could not enrol Telegram chat %s", chat_id)
+                                    await self.send(token, chat_id, "⚠️ KiloFrame could not save this chat's enrollment. Please try /start again.")
+                                    continue
+                                allowed.add(chat_id)
+                                log.info("enrolled Telegram chat %s through /start", chat_id)
+                                await self._command(token, chat_id, text)
                             else:
-                                log.warning("ignored telegram message from unauthorised chat %s", chat_id)
+                                log.warning("ignored Telegram message before /start from chat %s", chat_id)
                             continue
                         if text.startswith("/") and await self._command(
                             token, chat_id, text
