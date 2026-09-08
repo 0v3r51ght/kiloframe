@@ -69,9 +69,17 @@ if ! id "$KILO_USER" >/dev/null 2>&1; then
         echo "Creating service user: $KILO_USER"
         NOLOGIN="$(command -v nologin || echo /sbin/nologin)"
         if command -v useradd >/dev/null; then
-            useradd --system --create-home --shell "$NOLOGIN" "$KILO_USER"
+            if getent group "$KILO_GROUP" >/dev/null 2>&1; then
+                useradd --system --create-home --shell "$NOLOGIN" --gid "$KILO_GROUP" "$KILO_USER"
+            else
+                useradd --system --create-home --shell "$NOLOGIN" "$KILO_USER"
+            fi
         elif command -v adduser >/dev/null; then
-            adduser -S -D -h "/home/$KILO_USER" -s "$NOLOGIN" "$KILO_USER"
+            if getent group "$KILO_GROUP" >/dev/null 2>&1; then
+                adduser -S -D -h "/home/$KILO_USER" -s "$NOLOGIN" -G "$KILO_GROUP" "$KILO_USER"
+            else
+                adduser -S -D -h "/home/$KILO_USER" -s "$NOLOGIN" "$KILO_USER"
+            fi
         else
             echo "No supported system-user creation tool found." >&2
             exit 1

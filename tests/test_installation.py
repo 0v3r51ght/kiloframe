@@ -40,6 +40,12 @@ class InstallationTests(unittest.TestCase):
             else:
                 self.assertNotIn("SUDO_USER", text, f"{name} must not derive the service account from the invoking user")
 
+    def test_installer_reuses_group_left_by_a_safe_uninstall(self):
+        text = (Path(__file__).parents[1] / "scripts" / "install.sh").read_text()
+        self.assertIn('getent group "$KILO_GROUP"', text)
+        self.assertIn('--gid "$KILO_GROUP"', text)
+        self.assertIn('-G "$KILO_GROUP"', text)
+
     def test_install_rewrites_the_unit_for_the_chosen_account(self):
         install = (Path(__file__).parents[1] / "scripts" / "install.sh").read_text()
         self.assertIn("s/^User=.*/User=$KILO_USER/", install)
