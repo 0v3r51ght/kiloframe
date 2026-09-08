@@ -45,12 +45,27 @@ def seed_superpowers(memory: MemoryStore, root: Path) -> int:
 
 def seed_preconfigured_skills(memory: MemoryStore, settings: Settings) -> None:
     """Seed built-in integration guides and installed Superpowers skills at daemon start."""
+    playwright_skill = (
+        settings.integrations_dir
+        / "playwright"
+        / ".agents"
+        / "skills"
+        / "playwright-cli"
+        / "SKILL.md"
+    )
+    try:
+        playwright_steps = playwright_skill.read_text(encoding="utf-8")
+    except OSError:
+        playwright_steps = (
+            "Use playwright-cli for normal browser work. Inspect `playwright-cli --help` first; "
+            "open a page, use snapshot-derived refs for actions, take screenshots for visual "
+            "evidence, and close the browser. Use MCP only when persistent browser state is "
+            "genuinely needed."
+        )
     memory.save_skill(
         "playwright-cli",
         "when browser automation, UI verification, screenshots, or web test reproduction is requested",
-        "Use playwright-cli for normal browser work. Inspect `playwright-cli --help` first; "
-        "open a page, use snapshot-derived refs for actions, take screenshots for visual evidence, "
-        "and close the browser. Use MCP only when persistent browser state is genuinely needed.",
+        playwright_steps,
     )
     memory.save_skill(
         "context7",

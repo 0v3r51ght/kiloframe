@@ -164,7 +164,20 @@ if command -v npm >/dev/null 2>&1; then
         echo "Context7, Playwright CLI, and Exa are required but could not be installed." >&2
         exit 1
     elif command -v playwright-cli >/dev/null 2>&1; then
-        playwright-cli install --skills || { echo "Playwright skills installation failed." >&2; exit 1; }
+        PLAYWRIGHT_WORKSPACE="/opt/kiloframe/integrations/playwright"
+        install -d -m 0755 "$PLAYWRIGHT_WORKSPACE"
+        (
+            cd "$PLAYWRIGHT_WORKSPACE"
+            # Playwright defaults plain --skills to a vendor-specific .claude path.
+            # KiloFrame uses the official agent-neutral layout and imports it below.
+            playwright-cli install --skills=agents
+        ) || { echo "Playwright agent skills installation failed." >&2; exit 1; }
+        PLAYWRIGHT_SKILL="$PLAYWRIGHT_WORKSPACE/.agents/skills/playwright-cli/SKILL.md"
+        [[ -f "$PLAYWRIGHT_SKILL" ]] || {
+            echo "Playwright reported success but KiloFrame's agent skill was not found: $PLAYWRIGHT_SKILL" >&2
+            exit 1
+        }
+        chmod -R a+rX "$PLAYWRIGHT_WORKSPACE/.agents"
     fi
 else
     echo "npm is required for Context7, Playwright CLI, and Exa." >&2

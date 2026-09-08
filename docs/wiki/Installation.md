@@ -56,6 +56,7 @@ kiloframe doctor
 command -v context7-mcp
 command -v playwright-cli
 command -v serena
+test -f /opt/kiloframe/integrations/playwright/.agents/skills/playwright-cli/SKILL.md
 ```
 
 Then complete the real-terminal checks in [First run](First-Run). Unit tests alone do not

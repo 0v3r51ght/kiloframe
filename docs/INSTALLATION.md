@@ -90,6 +90,7 @@ kiloframe local status
 command -v context7-mcp
 command -v playwright-cli
 command -v serena
+test -f /opt/kiloframe/integrations/playwright/.agents/skills/playwright-cli/SKILL.md
 ```
 
 Then open a real terminal with `kiloframe`, run `/commands`, inspect `/local status`, and

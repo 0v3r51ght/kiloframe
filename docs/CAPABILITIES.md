@@ -14,7 +14,7 @@ entries are present in KiloFrame's native skills/MCP configuration on first laun
 | [Superpowers](https://github.com/obra/superpowers) | structured development skills | official skill files are imported into KiloFrame's skill memory |
 | [Serena](https://github.com/oraios/serena) | semantic code navigation | MCP server starts for KiloFrame and activates the current project |
 | [Context7](https://github.com/upstash/context7) | current technical documentation | MCP server is enabled |
-| [Playwright CLI](https://github.com/microsoft/playwright-cli) | browser/agent-skill workflows | CLI and its skills are installed |
+| [Playwright CLI](https://github.com/microsoft/playwright-cli) | browser/agent-skill workflows | CLI plus agent-neutral official skill imported into KiloFrame memory |
 | [GitHub MCP](https://github.com/github/github-mcp-server) | repository operations | optional authenticated server configured |
 | [Exa MCP](https://github.com/exa-labs/exa-mcp-server) | research | preconfigured but disabled until an API key is supplied |
 | [Firecrawl MCP](https://github.com/firecrawl/firecrawl-mcp-server) | crawling | optional service and credentials configured |

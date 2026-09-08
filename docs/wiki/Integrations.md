@@ -11,7 +11,7 @@ complete discovery.
 | Superpowers | official repository under `/opt/kiloframe/integrations/superpowers` | skill Markdown imported into bounded skill memory | `kiloframe status` skill count; inspect installer output |
 | Serena | `serena-agent` installed through `uv` under integrations | enabled MCP command `serena start-mcp-server` | `command -v serena`; daemon log shows discovered tools |
 | Context7 | global `@upstash/context7-mcp` package | enabled MCP command `context7-mcp` | `command -v context7-mcp`; daemon log shows discovered tools |
-| Playwright CLI | global official CLI | installer runs `playwright-cli install --skills` | `command -v playwright-cli`; `playwright-cli --help` |
+| Playwright CLI | global official CLI plus agent-neutral skill under `/opt/kiloframe/integrations/playwright` | official skill is imported into KiloFrame memory | `command -v playwright-cli`; inspect skill count/path |
 
 These are installed by the normal installer, not left as manual post-install steps. A
 failure to provision one causes installation to fail clearly.
@@ -37,10 +37,12 @@ through `npx` on every startup are migrated to the installed command.
 
 ### Playwright CLI and agent skills
 
-Playwright CLI is the primary browser workflow integration. Agent skills are installed
-with the official CLI. This does not claim that every possible browser/dependency is
-preinstalled on every distribution; validate the concrete browser workflow on its target
-host.
+Playwright CLI is the primary browser workflow integration. The installer uses the
+official `playwright-cli install --skills=agents` mode inside KiloFrame's integration
+directory, verifies the resulting `SKILL.md`, and imports its real content into KiloFrame
+memory at daemon startup. It does not use another agent's private skill directory. This
+does not claim every browser/dependency is available on every distribution; validate the
+concrete browser workflow on its target host.
 
 ## Optional integrations
 
