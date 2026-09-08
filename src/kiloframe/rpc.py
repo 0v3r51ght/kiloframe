@@ -328,15 +328,23 @@ class RPCServer:
                 from .providers import KNOWN_PROVIDERS
 
                 configured = self.agent.providers.providers()
+                known = {
+                    n: {"label": v["label"], "model": v["model"]}
+                    for n, v in KNOWN_PROVIDERS.items()
+                }
+                for name, provider in configured.items():
+                    if name not in known:
+                        known[name] = {
+                            "label": f"{name} (custom)",
+                            "model": provider.model,
+                            "custom": True,
+                        }
                 await self._send(
                     writer,
                     {
                         "type": "result",
                         "data": {
-                            "known": {
-                                n: {"label": v["label"], "model": v["model"]}
-                                for n, v in KNOWN_PROVIDERS.items()
-                            },
+                            "known": known,
                             "configured": sorted(configured),
                             "default": self.agent.providers.default_name(),
                         },
@@ -360,6 +368,23 @@ class RPCServer:
                                 "name": prov.name,
                             },
                         },
+                    )
+                except Exception as exc:
+                    await self._send(
+                        writer,
+                        {"type": "result", "data": {"ok": False, "error": str(exc)}},
+                    )
+            elif command == "configure_custom_provider":
+                try:
+                    prov = self.agent.providers.configure_custom(
+                        str(request.get("name", "")),
+                        str(request.get("base_url", "")),
+                        str(request.get("model", "")),
+                        str(request.get("api_key", "")),
+                    )
+                    await self._send(
+                        writer,
+                        {"type": "result", "data": {"ok": True, "label": prov.label, "name": prov.name}},
                     )
                 except Exception as exc:
                     await self._send(

@@ -1,32 +1,73 @@
 # KiloFrame
 
-KiloFrame is a local-first terminal AI agent with a full-screen terminal interface and
-a streaming CLI. Its local model route is a configurable [Ollama](Ollama) server. That
-server may be on the same host or another machine; its downloads and loaded-model state
-belong to that server.
+KiloFrame is a local-first terminal AI agent built around a full-screen Kilo/Sir
+conversation interface. Its daemon connects to an Ollama server you choose—on the same
+machine or elsewhere—and can use a separately configured cloud route only when you
+explicitly request it.
 
-The full TUI presents Sir’s input separately from Kilo’s response. Kilo’s progress,
-tool calls, failures, and final response stay inside the same Kilo box. The sidebar is
-grounded in live state: active route and model, queued task, work items, current context,
-and models reported as running by Ollama.
+The interface is evidence-based. The sidebar and footer distinguish configuration from
+live state: an endpoint is not shown online unless it responds; a selected model is not
+shown loaded unless Ollama reports it in `/api/ps`; and failures, tool activity, recovery,
+and conversation compaction appear live inside Kilo's response box.
 
-## First run
+## Quick start
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/0v3r51ght/kiloframe/main/scripts/install-online.sh | sudo bash
+kiloframe status
+kiloframe doctor
+kiloframe
+```
+
+Inside the TUI:
 
 ```text
-$ kiloframe
 ❯ /localset add local http://127.0.0.1:11434
 ❯ /local models
-❯ /local select <model reported by /local models>
+❯ /local select <model-reported-by-the-server>
+❯ /commands
 ❯ Hello, Kilo.
 ```
 
-Use `/help` for the short guide and `/commands` for the full command list. Input
-completion appears while typing slash commands.
+An Ollama endpoint is configurable, not an installation prerequisite. If the default
+endpoint is offline, KiloFrame should launch and report that fact accurately.
 
-## Start here
+## What is included
 
-- [Installation](Installation)
-- [Commands](Commands)
-- [Ollama local and remote servers](Ollama)
-- [Operations and recovery](Operations)
-- [Optional integrations](Integrations)
+- full-screen terminal UI with separate Sir input and bordered Kilo output;
+- streaming output with live thinking, tools, failures, CPU recovery, and compaction;
+- live sidebar for task, work items, context, active route/model, sessions, and loaded
+  models;
+- local or remote Ollama endpoint management, pull, select, inference, and unload;
+- automatic bounded conversation compaction with persistent SQLite sessions;
+- explicit optional cloud providers without silent fallback;
+- permission-gated built-in and MCP tools;
+- preconfigured Superpowers, Serena, Context7, and Playwright CLI;
+- optional credential-bound Exa, GitHub MCP, Firecrawl, and Telegram;
+- systemd and non-systemd daemon controls;
+- installer, uninstaller, doctor, status, logs, and real inference benchmark.
+
+## Documentation map
+
+- [Installation](Installation) — supported hosts, one-line install, layout, verification,
+  upgrades, and uninstall
+- [First run](First-Run) — first interactive setup and a human verification checklist
+- [Commands](Commands) — every shell command and full-TUI slash command
+- [Ollama](Ollama) — endpoint, model, thinking, load, unload, and failure behavior
+- [Conversations and memory](Conversations-and-Memory) — sessions, history, compaction,
+  facts, skills, and deletion
+- [Integrations](Integrations) — what is preconfigured, optional, and how to verify it
+- [Configuration](Configuration) — files, ownership, environment settings, and backups
+- [Architecture](Architecture) — daemon, RPC, agent, tools, model routes, and event flow
+- [Security and privacy](Security-and-Privacy) — policy, approvals, secrets, Tor, and MCP
+- [Operations](Operations) — status, service lifecycle, logs, upgrades, and backups
+- [Troubleshooting](Troubleshooting) — symptom-based diagnosis and recovery
+- [Testing and verification](Testing-and-Verification) — source, installer, integration,
+  and real-TUI acceptance checks
+
+## Operating principles
+
+KiloFrame never silently changes route when inference fails. It never treats a configured
+provider as connected, and it never treats a downloaded model as loaded. Credential-bound
+services remain optional. A command or source change is not considered verified until its
+real user workflow has been exercised.

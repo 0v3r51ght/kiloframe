@@ -149,7 +149,7 @@ class ToolRegistry:
 
         The list deliberately does not vary with the request text. Tools are rendered
         into the prompt prefix, so selecting them per request changes that prefix and
-        misses llama-server's cache, forcing a full reprocess of the system prompt on
+        destabilises the model-facing prefix, forcing unnecessary prompt reprocessing on
         every message -- minutes of work on CPU-only hardware. A fixed set keeps the
         prefix cacheable, and letting the model choose from all tools is also what the
         agent design calls for.

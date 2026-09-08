@@ -23,6 +23,8 @@ class FakeClient:
             }, "configured": [], "default": None}
         if command == "configure_provider":
             return {"ok": True, "label": kw["name"] + ":m", "name": kw["name"]}
+        if command == "configure_custom_provider":
+            return {"ok": True, "label": kw["name"] + ":" + kw["model"], "name": kw["name"]}
         return {}
 
 
@@ -41,6 +43,21 @@ class CloudFlowTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(app.cloud_provider, "groq")
         self.assertTrue(any(c[0] == "configure_provider" and c[1]["api_key"] == "gsk-testkey"
                             for c in app.client.calls))
+
+    async def test_custom_endpoint_setup_is_available_in_tui(self):
+        app = KiloApp(FakeClient())
+        await app._cloud_setup()
+        self.assertEqual(app._cloud_options[-1][0], "custom")
+        await app._resume_pending(str(len(app._cloud_options)))
+        self.assertEqual(app._pending["kind"], "cloud_custom_name")
+        await app._resume_pending("private_gateway")
+        await app._resume_pending("https://llm.example.test/v1")
+        await app._resume_pending("example/model")
+        await app._resume_pending("test-key")
+        self.assertTrue(app.cloud_active)
+        self.assertEqual(app.cloud_provider, "private_gateway")
+        call = next(c for c in app.client.calls if c[0] == "configure_custom_provider")
+        self.assertEqual(call[1]["base_url"], "https://llm.example.test/v1")
 
     async def test_spawn_keeps_task_reference(self):
         app = KiloApp(FakeClient())

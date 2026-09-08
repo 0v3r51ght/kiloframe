@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import urllib.error
 import urllib.request
 from collections.abc import AsyncIterator
@@ -36,10 +37,10 @@ log = logging.getLogger("kiloframe.providers")
 
 # Sent by OpenRouter's convention so usage is attributable to this project.
 _ATTRIBUTION = {
-    "HTTP-Referer": "https://github.com/citadelconsortium/kiloframe",
+    "HTTP-Referer": "https://github.com/0v3r51ght/kiloframe",
     "X-Title": "KiloFrame",
 }
-_USER_AGENT = "KiloFrame/1.0 (+https://github.com/citadelconsortium/kiloframe)"
+_USER_AGENT = "KiloFrame/1.0 (+https://github.com/0v3r51ght/kiloframe)"
 
 
 class ProviderError(KiloFrameError):
@@ -183,6 +184,54 @@ class ProviderRegistry:
             "base_url": base_url,
             "api_key": api_key.strip(),
             "model": chosen_model,
+            "auth_header": auth_header,
+            "enabled": True,
+        }
+        raw["default"] = name
+        self.config_path.parent.mkdir(parents=True, exist_ok=True)
+        self.config_path.write_text(json.dumps(raw, indent=2) + "\n", encoding="utf-8")
+        try:
+            os.chmod(self.config_path, 0o600)
+        except OSError:
+            pass
+        return self.resolve(name)
+
+    def configure_custom(
+        self,
+        name: str,
+        base_url: str,
+        model: str,
+        api_key: str,
+        auth_header: str = "Authorization",
+    ) -> Provider:
+        """Configure an operator-defined OpenAI-compatible HTTPS endpoint.
+
+        Custom endpoints use the same protected file and explicit routing rules as the
+        built-in catalog. HTTPS is mandatory because the key is sent in a request header.
+        """
+        import os
+
+        name = name.strip().lower()
+        base_url = base_url.strip().rstrip("/")
+        model = model.strip()
+        api_key = api_key.strip()
+        if not re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,39}", name) or name == "custom":
+            raise ProviderError("custom provider name must be 1-40 lowercase letters, numbers, '-' or '_'")
+        if name in KNOWN_PROVIDERS:
+            raise ProviderError(f"{name} is a built-in provider; select it from the catalog")
+        if not base_url.startswith("https://"):
+            raise ProviderError("custom cloud endpoints must use https://")
+        if not model:
+            raise ProviderError("a model name is required")
+        if not api_key:
+            raise ProviderError("an API key is required")
+        if auth_header not in {"Authorization", "X-API-Key"}:
+            raise ProviderError("auth header must be Authorization or X-API-Key")
+        raw = self._raw()
+        raw.setdefault("providers", {})[name] = {
+            "base_url": base_url,
+            "api_key": api_key,
+            "model": model,
             "auth_header": auth_header,
             "enabled": True,
         }

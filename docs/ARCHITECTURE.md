@@ -1,165 +1,141 @@
 # KiloFrame architecture
 
-KiloFrame is a local-first terminal AI built around exactly one prebuilt GGUF brain. The
-model reasons and chooses tools; deterministic Python owns everything that must not be
-left to a language model.
+KiloFrame is a local-first terminal agent. A full-screen TUI, line-oriented CLI, and
+optional Telegram bridge talk to one long-running daemon over a group-restricted Unix
+socket. Local/private inference is provided by a configured Ollama HTTP server; optional
+cloud inference is used only when the operator explicitly selects it.
 
+```text
+ full TUI       CLI chat       Telegram (optional)
+    │              │                  │
+    └──────────── Unix-socket RPC ─────┘
+                         │
+                  KiloFrame daemon
+                         │
+       ┌──────────┬──────┼──────┬────────────┐
+       │          │      │      │            │
+     agent      tools  memory  MCP       security
+       │                 │      │
+       │              SQLite   Serena / Context7
+       │
+       ├── configured Ollama server (local or remote)
+       └── explicitly selected cloud provider (optional)
 ```
-        kilo (TUI)          Telegram
-             │                  │
-             └────── IPC ───────┘
-                     │
-             KiloFrame daemon
-                     │
-   ┌────────┬────────┼────────┬─────────┐
-   │        │        │        │         │
- agent   tools   memory  resources  security
-   │
-llama-server ── kiloframe-brain.gguf
-```
 
-## Principles
+## Runtime boundaries
 
-**The model is not the security boundary.** It may request any action; `security.py`
-decides what runs. Model output is treated as untrusted input to privileged code.
+- The daemon owns sessions, tool execution, integrations, provider routing, and model
+  requests. Closing the TUI does not stop it.
+- Front ends connect to `/run/kiloframe/kiloframe.sock`; they do not infer daemon,
+  provider, or model state locally.
+- `/etc/kiloframe/ollama.json` stores named Ollama endpoints and a selected model per
+  endpoint. The Ollama host owns downloads and loaded-model state.
+- `/var/lib/kiloframe/memory.sqlite3` stores sessions, messages, learned facts, skills,
+  and the tool audit trail.
+- An optional provider is never an automatic fallback. A failed Ollama request is
+  reported rather than silently sending private input elsewhere.
 
-**One brain, one process.** A single `llama-server` holds the model. Every front end
-connects to it over a Unix socket. Launching `kilo` twice does not load the model twice.
-
-**The framework carries the load.** Every token the model does not have to read is
-prompt-processing time not spent. Tool results are compacted, history is budgeted, and
-the prompt prefix is kept stable and cached so the model only processes what is new.
-
-**No automatic cloud fallback.** `providers.py` supplies explicit hosted inference, but
-local remains the default when a GGUF is installed. If local inference fails, the framework
-reports it rather than silently sending the prompt elsewhere.
-
-## Modules
+## Major modules
 
 | Module | Responsibility |
 |---|---|
-| `cli.py` | `kilo` entry point and subcommands |
-| `tui.py` | Animated terminal interface, streaming, cancellation |
-| `daemon.py` | Process lifecycle, startup order, clean shutdown |
-| `rpc.py` | Unix-socket JSON protocol between front ends and daemon |
-| `agent.py` | The agent loop: prompt assembly, tool dispatch, continuation |
-| `runtime.py` | Owns the single `llama-server`; KV cache save/restore |
-| `tools.py` | Tool registry, schemas, implementations |
-| `context.py` | Deterministic compaction of tool results |
-| `memory.py` | Bounded SQLite sessions, messages, facts, audit |
-| `resources.py` | Hardware detection and runtime tuning |
-| `security.py` | Path policy, command policy, permission manager |
-| `telegram.py` | Allow-listed remote front end with chat-bound action approvals |
-| `mcp.py` | MCP client (stdio), external server lifecycle and tool namespacing |
-| `providers.py` | Optional hosted brains, used only on explicit escalation |
-| `brains.py` | Brain lifecycle: candidate → current → previous, with rollback |
-| `theme.py` | Palette, glyphs and box characters, with fallbacks |
-| `render.py` | Streaming Markdown rendering for assistant output |
-| `doctor.py` | Health checks and remediation hints |
-| `prompt.py` | System prompt and remote suffix |
-| `config.py` | Settings, paths, model identity |
+| `cli.py` | command parsing, service controls, status, doctor, logs |
+| `tui_full.py` | full-screen Kilo/Sir presentation, sidebar, menus, live events |
+| `tui.py` | streaming line-oriented fallback |
+| `daemon.py` | daemon lifecycle and integration startup |
+| `rpc.py` | newline-delimited JSON RPC over the Unix socket |
+| `agent.py` | prompt assembly, agent loop, compaction, tool dispatch |
+| `ollama.py` | Ollama configuration and documented HTTP endpoints |
+| `runtime.py` | selected Ollama model, streaming, thinking, CPU retry |
+| `providers.py` | explicitly selected hosted inference routes |
+| `tools.py` | built-in tool registry and implementations |
+| `mcp.py` | MCP subprocess lifecycle, discovery, and invocation |
+| `memory.py` | bounded SQLite persistence and session history |
+| `context.py` | deterministic tool-result compaction |
+| `security.py` | path and command policy plus action approvals |
+| `resources.py` | host/cgroup resource reporting |
+| `doctor.py` | installation and live-health checks |
 
-## The agent loop
+## Request lifecycle
 
+```text
+Sir submits input
+      │
+      ├── slash command ──> TUI/RPC operation ──> visible result
+      │
+      └── normal prompt
+             │
+             ├── load recent session history
+             ├── compact older history if it exceeds the budget
+             ├── choose agent profile and applicable skills
+             ├── announce the real model route
+             └── stream model output
+                      │
+                      ├── text ────────────────> Kilo response box
+                      └── tool request
+                              ├── validate schema and policy
+                              ├── request approval when required
+                              ├── execute and audit
+                              └── compact result and continue
 ```
-user message
-      ↓
-system prompt (stable, cached) + recalled memory + budgeted history
-      ↓
-llama-server, with the full tool schema
-      ↓
-text  ──────────────────────────────────→ answer
-  or
-tool call → validate → authorise → execute → compact result
-      ↓
-back to the model, repeat (bounded by max_agent_steps)
-```
 
-Repeated identical calls are detected and blocked, and tools are withdrawn for the next
-step, so a small model cannot spin on the same action.
+The loop is bounded by effort level and `max_agent_steps`. Repeated identical tool calls
+are blocked. Research profiles must successfully search and open a source before their
+answer is accepted. Live model, thinking, tool, recovery, compaction, and failure events
+are rendered inside Kilo's response presentation.
 
-## Why the prompt prefix is stable
+## Conversation compaction
 
-Tools are rendered into the prompt prefix. Selecting them per request changes that
-prefix, which misses `llama-server`'s cache and reprocesses the whole system prompt on
-every message. Measured on a CPU-only host that is the difference between a 36-second
-reply and roughly twenty minutes.
+KiloFrame stores full messages in SQLite but sends a bounded context to the model. Recent
+turns are retained newest-first up to `max_history_tokens`; older turns become a compact,
+role-labelled record. When this occurs the daemon emits a `compaction` event and the TUI
+reports the number of earlier turns compacted. `/new` starts a separate session; `/chats`
+and `/kilochats` allow an existing one to be resumed.
 
-For the same reason the system message is never mutated: recalled memory is added as a
-separate message after it, so the cached prefix still matches.
+Tool output is budgeted separately. Oversized structured or text results retain their
+head, tail, exit status, and useful surrounding structure while explicitly saying what
+was omitted. This prevents a single large command from displacing the conversation.
 
-The warmed prefix is saved to disk and restored at startup. The cache filename hashes the
-system prompt, the tool schemas, the model path and the context size, so changing any of
-them re-warms rather than restoring a prefix that could not be reused.
+## Ollama route
 
-## Context budgeting
+KiloFrame uses Ollama's supported endpoints: `/api/version`, `/api/tags`, `/api/ps`,
+`/api/show`, `/api/pull`, `/api/chat`, and `/api/generate` with `keep_alive: 0` for
+unload. Selection, download, and loaded state are separate:
 
-Tool output is the largest unpredictable input. Dense output tokenises at roughly two
-characters per token: a single `ls -la /usr/lib` measured **33,496 tokens** against an
-8192-token window.
+- `models` is whatever the active server reports downloaded.
+- the selected model is stored for that named server only;
+- `ps` is whatever that server reports currently running;
+- a selection is not labelled loaded until `ps` confirms it.
 
-`context.py` compacts results before the model sees them: large text fields are shortened
-middle-out so the head, the tail and the surrounding structure (exit codes, paths) all
-survive; entry lists are capped to what the budget affords; and the model is told what was
-removed so it can request a narrower slice. History is budgeted the same way, since a
-message count is not a bound on context when one turn can carry a tool result.
+Thinking controls are sent only when `/api/show` advertises a compatible capability.
+On a CUDA out-of-memory response KiloFrame reports the recovery and makes one bounded
+retry with Ollama's CPU setting; it never changes endpoint or model silently.
 
-## Skills
+## Integrations and skills
 
-A procedure recorded after a task succeeds is stored in SQLite and surfaced into context
-when a later request matches its name or trigger. The registry is bounded and ordered by
-observed reliability, so what survives is what has actually worked. Skills go in their own
-message, never the system prompt, so the cached prefix is unaffected.
+The installer provisions Superpowers, Serena, Context7, and Playwright CLI. Superpowers
+skills are imported into KiloFrame's skill memory. Serena and Context7 start as MCP
+servers; discovered tools are namespaced and pass through the same permission and output
+compaction path as built-ins. Playwright installs its agent skills for browser workflows.
 
-## MCP
-
-External tools arrive over the Model Context Protocol, stdio transport, protocol version
-2025-06-18. Each server is a subprocess; messages are newline-delimited UTF-8 JSON-RPC
-with no embedded newlines; the session opens with initialize and the initialized
-notification and closes by shutting stdin before escalating.
-
-Servers are untrusted. Their tools are namespaced `mcp__<server>__<tool>`, a tool without
-a usable object input schema is never shown to the model, invoking one requires the same
-permission as any other outward action, and results pass through the same compaction. A
-server that hangs hits a request timeout rather than blocking the daemon, and one that
-fails to start is skipped rather than taking the process down. MCP tools are never offered
-to remote callers.
-
-Servers start before warmup so their schemas are part of the primed prefix rather than
-changing it on the first real request.
-
-## Cloud escalation
-
-`providers.py` can send a single request to a hosted model that speaks the OpenAI
-chat-completions shape. It is not a fallback path: local is the default, escalation
-applies only to a message the operator marked, it never triggers automatically or on
-local failure, the answering brain is reported in a `brain` event so the interface can
-label it, and with no providers file there is no cloud path at all. Keys are read from a
-`0600` file, sent in a header over HTTPS only, and never logged or placed on a command
-line. An allow-listed Telegram owner can explicitly choose `/cloud`; local and cloud brains
-receive the same built-in tools and non-safe actions wait for a chat-bound approval callback.
+Credential-bound Exa, GitHub MCP, and Firecrawl entries are present but disabled. A
+failed optional MCP server is logged and skipped without fabricating an available tool or
+taking down the core daemon.
 
 ## Security model
 
-- Paths resolve through `PathPolicy` and must land inside the service user's home or `/tmp`.
-- Commands never use a shell. Explicit `program + argv` only; shell operators are rejected.
-- Commands are classified `safe` / `write` / `elevated` / `destructive`. Unknown programs,
-  interpreters, active network/security tools, and commands that can alter external state
-  are not treated as safe. Each non-safe class has a separate session approval capability.
-- Remote (Telegram) messages are accepted only from configured chat IDs. Safe operations run
-  directly; every non-safe operation requires an unexpired one-time decision from that same
-  chat. With no callback or on timeout, the executor denies the action.
-- Web fetches resolve DNS and refuse non-global addresses, so the model cannot reach
-  private network services.
-- Output, runtime and file sizes are bounded. Every tool call is audited to SQLite.
+- The model is not the security boundary. Model output is untrusted input to policy code.
+- Built-in command execution uses an explicit program and argument list, never a shell.
+- Paths are resolved and restricted to the service account's home and `/tmp` by default.
+- Actions are classified as safe, write, elevated, or destructive; non-safe actions use
+  separate approval capabilities.
+- Remote Telegram actions are accepted only for allow-listed chat IDs, and non-safe
+  actions require a time-limited decision from the same chat.
+- Private web mode routes through Tor and fails closed if Tor is unavailable.
+- MCP tools are namespaced, schema-checked, permission-gated, and not exposed to remote
+  callers.
+- Provider secrets live in owner-readable configuration and are not printed in logs or
+  command lines.
 
-## Resources
-
-`resources.py` reads total and available memory, cgroup limits, CPU flags and GPU presence
-on each start, reserves headroom for the operating system, and derives context size,
-thread count, batch size and GPU offload. The same GGUF is used on every machine; only the
-runtime configuration changes.
-
-llama.cpp ships per-microarchitecture CPU backends and loads the best one at runtime, so a
-host with AVX2 or AVX-512 is dramatically faster than one without. `kilo doctor` warns when
-a machine lacks AVX2 and will fall back to the generic backend.
+See [Configuration](wiki/Configuration.md), [Security and privacy](wiki/Security-and-Privacy.md),
+and [RPC API](API.md) for operational details.

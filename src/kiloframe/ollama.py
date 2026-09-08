@@ -39,7 +39,7 @@ from .errors import KiloFrameError
 log = logging.getLogger("kiloframe.ollama")
 
 DEFAULT_LOCAL_URL = "http://127.0.0.1:11434"
-USER_AGENT = "KiloFrame/1.0 (+https://github.com/citadelconsortium/kiloframe)"
+USER_AGENT = "KiloFrame/1.0 (+https://github.com/0v3r51ght/kiloframe)"
 
 
 class OllamaError(KiloFrameError):

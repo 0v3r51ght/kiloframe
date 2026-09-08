@@ -6,12 +6,19 @@ state comes from the selected Ollama server rather than guesses made by the clie
 
 | Wiki page | Purpose |
 |---|---|
-| [Home](wiki/Home.md) | Product overview and first run |
-| [Installation](wiki/Installation.md) | Installer, non-systemd operation, uninstall, integrity checks |
-| [Commands](wiki/Commands.md) | CLI and full-TUI slash commands |
-| [Ollama](wiki/Ollama.md) | Local/remote server configuration and lifecycle |
-| [Operations](wiki/Operations.md) | Status, recovery, logs, and troubleshooting |
-| [Integrations](wiki/Integrations.md) | Optional skills and MCP integrations |
+| [Home](wiki/Home.md) | Product overview and documentation map |
+| [First run](wiki/First-Run.md) | Initial configuration and human TUI acceptance |
+| [Installation](wiki/Installation.md) | Installer, upgrades, uninstall, paths, and integrity checks |
+| [Commands](wiki/Commands.md) | Every CLI and full-TUI slash command |
+| [Ollama](wiki/Ollama.md) | Local/remote endpoint and model lifecycle |
+| [Conversations and memory](wiki/Conversations-and-Memory.md) | Sessions, persistence, compaction, facts, and skills |
+| [Integrations](wiki/Integrations.md) | Required preconfiguration and optional services |
+| [Configuration](wiki/Configuration.md) | Files, settings, ownership, environment, and backups |
+| [Architecture](wiki/Architecture.md) | Clients, daemon, agent, tools, routes, and RPC |
+| [Security and privacy](wiki/Security-and-Privacy.md) | Policy, approvals, secrets, MCP, and Tor |
+| [Operations](wiki/Operations.md) | Status, daemon control, logs, upgrade, and backup |
+| [Troubleshooting](wiki/Troubleshooting.md) | Symptom-based diagnosis and safe recovery |
+| [Testing and verification](wiki/Testing-and-Verification.md) | Source, install, integration, Ollama, and real-TUI checks |
 
 The detailed repository documentation remains the source of truth for code-level
 architecture and troubleshooting: [Architecture](ARCHITECTURE.md),

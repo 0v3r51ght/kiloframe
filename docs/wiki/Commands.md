@@ -1,54 +1,106 @@
 # Commands
 
-## CLI
+## Shell CLI
+
+| Command | Purpose |
+|---|---|
+| `kiloframe` | launch full TUI, or streaming fallback without a real terminal |
+| `kiloframe chat "MESSAGE"` | stream one response |
+| `kiloframe status` | daemon/model/endpoint/uptime/memory/recovery status |
+| `kiloframe doctor` | installation and live health checks |
+| `kiloframe resources` | JSON host/cgroup resource profile |
+| `kiloframe model-info` | active Ollama endpoint and selected model |
+| `kiloframe version` | application/runtime version information |
+| `kiloframe logs -n 100` | recent systemd or detached-daemon log |
+| `kiloframe start`, `stop`, `restart` | daemon lifecycle |
+| `kiloframe benchmark` | time a real short inference |
+
+### Ollama CLI
 
 ```text
-kiloframe                         open the full TUI
-kiloframe chat "message"          stream one answer
-kiloframe status                  daemon, Ollama, model, runtime and recovery information
-kiloframe doctor                  dependency and health checks
-kiloframe resources               live host capacity profile
-kiloframe model-info              active server and selected model metadata
-kiloframe version                 application and runtime versions
-kiloframe logs [-n LINES]         service or detached-daemon logs
-kiloframe start|stop|restart      control the daemon
-kiloframe benchmark               run a short real inference benchmark
-kiloframe local status|models|ps  inspect the active Ollama server
-kiloframe local pull <model>      pull onto the active server
-kiloframe local select <model>    select a model the active server reports downloaded
-kiloframe local unload [model]    request unload on the active server
-kiloframe localset list           list configured servers
-kiloframe localset add <name> <url>
-kiloframe localset default <name>
-kiloframe localset remove <name>
-kiloframe telegram status         inspect the optional Telegram bridge
+kiloframe local [status]
+kiloframe local models
+kiloframe local ps
+kiloframe local pull MODEL
+kiloframe local select MODEL
+kiloframe local unload [MODEL]
+kiloframe localset [list]
+kiloframe localset add NAME URL
+kiloframe localset default NAME
+kiloframe localset remove NAME
 ```
 
-`kiloframe status` distinguishes a stopped daemon, an unreachable server, no selected
-model, and a selected-but-not-loaded model. It prints a systemd or non-systemd recovery
-command appropriate for the host.
-
-In the TUI, `/local models` numbers its results and `/local select <number>` selects that
-entry. A selected but unloaded model is labelled exactly that, never `ready`.
-
-## Full TUI slash commands
+### Optional Telegram CLI
 
 ```text
-/help                 short in-app guide
-/commands             full command reference
-/local                 Ollama menu
-/local status|models|ps|pull|select|unload
-/localset list|add|remove|default
-/switch               select Ollama or a configured cloud route
-/thinking off|on|low|medium|high
-/effort high|medium|low
-/agent <name>|off
-/private on|off|rotate
-/cloud, /model
-/chats, /kilochats, /chat, /delete
-/cancel, /new, /clear, /quit
+kiloframe telegram status
+kiloframe telegram set-token TOKEN
+kiloframe telegram allow CHAT_ID
+kiloframe telegram disallow CHAT_ID
+kiloframe telegram disable
 ```
 
-`/thinking` is capability-gated. A model with generic Ollama thinking gets `on`/`off`;
-levels are only offered for model families with an advertised level control. KiloFrame
-does not claim cloud thinking controls it cannot verify.
+## TUI slash commands
+
+Slash-command completion appears while typing. Interactive commands show menus and accept
+the displayed number where documented.
+
+### Help and lifecycle
+
+- `/commands` — complete in-app command list.
+- `/help` — short usage guide.
+- `/cancel` — cancel the active request and clear its queue.
+- `/new` — start a fresh session.
+- `/clear` — clear the current rendered screen.
+- `/quit`, `/exit`, `/q` — leave the TUI; the daemon remains active.
+
+### Local/remote Ollama
+
+- `/local` — interactive Ollama menu.
+- `/local status` — endpoint, version, selected model, downloads, and loaded count.
+- `/local models` — numbered list returned by the active server.
+- `/local ps` — models reported loaded/running.
+- `/local pull MODEL` — live pull progress.
+- `/local select MODEL_OR_NUMBER` — select a downloaded model.
+- `/local unload [MODEL]` — request unload.
+- `/localset` or `/localset list` — configured endpoint menu.
+- `/localset add NAME URL` — add/update an endpoint.
+- `/localset default NAME` — activate a named endpoint.
+- `/localset remove NAME` — remove an endpoint.
+- `/switch` — toggle Ollama and an already configured cloud route.
+
+### Response behavior
+
+- `/thinking off|on|low|medium|high` — native thinking where the selected model advertises
+  support. Unsupported levels are not pretended.
+- `/effort low|medium|high` — response-token and agent-step budget.
+- `/agent NAME` — force `orchestrator`, `research`, `coding`, `security`, `math`,
+  `engineering`, `systems`, `general`, `conversation`, or `private`.
+- `/agent off` — restore automatic selection.
+
+### Cloud and privacy
+
+- `/cloud` — configure or inspect a provider.
+- `/cloud key` — add/change provider configuration.
+- `/cloud` → `Custom endpoint` — configure a named OpenAI-compatible HTTPS URL, model,
+  and API key without hand-editing JSON.
+- `/cloud QUESTION` — one explicit cloud request.
+- `/model` — fetch the selected provider's model catalogue.
+- `/model NAME_OR_NUMBER` — select a provider model.
+- `/private on|status|rotate|off` — control fail-closed Tor routing for web operations.
+
+No cloud provider is required. `/switch` reports when none exists instead of implying a
+connection. `/thinking` does not claim cloud support without a verified control.
+
+### Sessions
+
+- `/chats` — list recent sessions.
+- `/kilochats` — list and arm number selection.
+- `/chat N` — resume a listed session.
+- `/delete`, `/delete N`, `/delete N,M`, `/delete all` — delete chosen history.
+
+Conversation compaction is automatic and visible. Persistent history remains in SQLite;
+only the bounded model-facing context is compacted, so no manual `/compact` command is
+needed.
+
+Use `kiloframe --help` or `kiloframe <command> --help` for generated argument syntax.

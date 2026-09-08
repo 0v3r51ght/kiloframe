@@ -1,150 +1,163 @@
-# KiloFrame Installation Guide
+# KiloFrame installation
 
-## System Requirements
+## Requirements
 
-- Linux (systemd recommended, but not required)
-- Python 3.11+
-- 4GB RAM minimum (8GB recommended for local models)
-- Network access for model downloads
+- Linux with Python 3.11 or newer
+- root access for the system installation
+- network access during installation for operating-system packages and the required
+  preconfigured integrations
+- an Ollama endpoint only when using the Ollama route; installation and launch do not
+  require Ollama to be reachable
 
-## Quick Install
+The installer supports `pacman`, `apt-get`, `dnf`, `zypper`, and `apk`. Operational
+systemd is used when available; containers and other non-systemd hosts use KiloFrame's
+detached-daemon controls.
+
+## One-line installation
 
 ```bash
-# Method 1: One-line installer
 curl -fsSL https://raw.githubusercontent.com/0v3r51ght/kiloframe/main/scripts/install-online.sh | sudo bash
+```
 
-# Method 2: From source
+This is a complete installer, not a launcher stub. It downloads a cache-busted archive
+of current `main`, validates the archive structure, invokes the main installer, starts or
+restarts the daemon, and prints live `kiloframe status`. A failed download, dependency,
+integration, install, daemon-control, or status stage returns a nonzero exit code.
+
+## Installation from a checkout
+
+```bash
 git clone https://github.com/0v3r51ght/kiloframe
 cd kiloframe
 sudo ./scripts/install.sh
-```
-
-The one-line method downloads the current `main` archive, performs the real installation,
-starts or restarts KiloFrame on systemd and non-systemd hosts, and prints live status
-before returning. A failed download, installation, service action, or status check makes
-the command return nonzero.
-
-## Verify Installation
-
-```bash
-# Check version
-kiloframe --version
-
-# Check status
+sudo kiloframe restart
 kiloframe status
-
-# Run doctor
-kiloframe doctor
 ```
 
-## Configure Ollama
+The installer is repeatable and preserves existing operator configuration. It:
+
+1. installs required operating-system packages;
+2. creates or reuses the `kiloframe` service account and group;
+3. installs application code under `/opt/kiloframe/app`;
+4. creates protected configuration, data, log, and runtime paths;
+5. installs `/usr/local/bin/kiloframe`;
+6. installs and enables the systemd unit when systemd is operational;
+7. provisions Superpowers, Serena, Context7, and Playwright CLI;
+8. writes the preconfigured MCP registry on a first install.
+
+Exa is installed and its MCP entry is disabled until configured. GitHub MCP and
+Firecrawl are optional disabled entries. Their credentials are not required for core
+installation or operation.
+
+## Installed layout
+
+| Path | Purpose |
+|---|---|
+| `/usr/local/bin/kiloframe` | user command wrapper |
+| `/opt/kiloframe/app` | installed Python application |
+| `/opt/kiloframe/integrations` | Superpowers and Serena assets |
+| `/etc/kiloframe` | Ollama, MCP, policy, provider, and Telegram configuration |
+| `/var/lib/kiloframe` | SQLite conversations, facts, skills, and audit data |
+| `/var/log/kiloframe` | detached-daemon log on non-systemd hosts |
+| `/run/kiloframe` | PID file and group-restricted RPC socket |
+| `/etc/systemd/system/kiloframe.service` | systemd unit |
+
+The invoking sudo user is added to the KiloFrame group. Open a new login session after a
+fresh installation so the shell receives that group before launching the TUI.
+
+## First configuration
 
 ```bash
-# Add your Ollama server
 kiloframe localset add local http://127.0.0.1:11434
-
-# Or remote server
-kiloframe localset add remote http://ollama.internal.example:11434
-
-# List servers
 kiloframe localset list
-
-# Set default
-kiloframe localset default local
-```
-
-## Pull a Model
-
-```bash
-# List available models on server
+kiloframe local status
 kiloframe local models
-
-# Pull a model
-kiloframe local pull llama3.2
-
-# Select model
-kiloframe local select llama3.2
-```
-
-## Start KiloFrame
-
-```bash
-# Interactive TUI
+kiloframe local select <name-from-models>
 kiloframe
-
-# Or chat mode
-kiloframe chat "Hello Kilo"
 ```
 
-## Service Management (systemd)
+For a remote endpoint, use your own URL, for example
+`http://ollama.internal.example:11434`. KiloFrame does not require a particular server
+address and never embeds an operator's private endpoint in public documentation.
+
+## Verify the installation
 
 ```bash
-# Start service
-sudo systemctl start kiloframe
-
-# Check status
-sudo systemctl status kiloframe
-
-# View logs
-sudo journalctl -u kiloframe -f
+kiloframe --version
+kiloframe status
+kiloframe doctor
+kiloframe local status
+command -v context7-mcp
+command -v playwright-cli
+command -v serena
 ```
 
-### Containers and other non-systemd environments
+Then open a real terminal with `kiloframe`, run `/commands`, inspect `/local status`, and
+send a normal prompt. A source-only unit test is not a substitute for this interactive
+check.
 
-The installer detects when `systemctl` exists but systemd is not actually running. It
-still installs KiloFrame and creates the runtime directory, but cannot register a boot
-service. Its CLI controls the detached daemon directly:
+`kiloframe status` may accurately report `UNHEALTHY` when the configured Ollama endpoint
+is offline, or `MODEL REQUIRED` when no model is selected. Those states do not mean the
+files failed to install.
+
+## Service operation
+
+On systemd:
+
+```bash
+sudo systemctl start kiloframe
+sudo systemctl restart kiloframe
+sudo systemctl stop kiloframe
+sudo journalctl -u kiloframe -n 100 --no-pager
+```
+
+On a host without operational systemd:
 
 ```bash
 sudo kiloframe start
 sudo kiloframe restart
 sudo kiloframe stop
-kiloframe logs
+kiloframe logs -n 100
 ```
 
-`kiloframe status` also prints an exact manual start command for use with another process
-supervisor. Launch the TUI from an account permitted to use the KiloFrame socket. The
-daemon remains usable without Ollama; configure a server later with
-`kiloframe localset add <name> <url>`.
+`kiloframe status` detects the environment and prints an executable start or recovery
+command. The one-line installer starts the detached daemon automatically on non-systemd
+hosts.
 
-### Ollama memory tuning
+## Optional SHA-256 verification
 
-KiloFrame sends a conservative 2048-token context limit to Ollama by default. This
-avoids GPU out-of-memory failures on smaller local or remote servers where a model can
-load but its default KV cache cannot. To raise it after confirming the server has enough
-memory, set `KILOFRAME_OLLAMA_CONTEXT_TOKENS` in the daemon environment (for example
-`4096`) and restart the daemon.
+```bash
+curl -fsSL https://raw.githubusercontent.com/0v3r51ght/kiloframe/main/scripts/install-online.sh -o install-online.sh
+sha256sum install-online.sh
+# Compare the digest with the SHA-256 published for the intended release.
+sudo bash install-online.sh
+```
 
-If Ollama's automatic GPU placement returns a CUDA out-of-memory error, KiloFrame makes
-one bounded retry of the same selected model with Ollama's official `num_gpu: 0` request
-option. The TUI reports that CPU recovery live; another failure is returned honestly.
+For stronger reproducibility, download a named release asset and its published checksum
+instead of a moving branch before executing it.
 
 ## Uninstall
 
+The uninstaller is provided by a checkout:
+
 ```bash
+git clone https://github.com/0v3r51ght/kiloframe
+cd kiloframe
 sudo ./scripts/uninstall.sh
 ```
 
-## Troubleshooting
+It stops KiloFrame, removes the service unit, application, configuration, runtime data,
+logs, command wrapper, and the default service account. It does not remove system-wide
+packages installed through the host package manager or global integration packages that
+may be shared with other applications.
 
-### Daemon won't start
+Back up `/etc/kiloframe` and `/var/lib/kiloframe` before uninstalling if configuration or
+conversation history must be retained.
 
-```bash
-# Check logs
-sudo journalctl -u kiloframe -n 50
+## Context and memory tuning
 
-# Verify Ollama is running
-curl http://127.0.0.1:11434/api/version
-
-# Test connection
-kiloframe local status
-```
-
-### Permission errors
-
-```bash
-# Fix permissions
-sudo chown -R kiloframe:kiloframe /etc/kiloframe
-sudo chown -R kiloframe:kiloframe /var/lib/kiloframe
-sudo chown -R kiloframe:kiloframe /var/log/kiloframe
-```
+Ollama requests default to a conservative 2048-token context. Set
+`KILOFRAME_OLLAMA_CONTEXT_TOKENS` in the daemon environment only after confirming the
+server has enough memory, then restart KiloFrame. Conversation history and tool results
+are independently compacted within their configured budgets; see
+[Conversations and memory](wiki/Conversations-and-Memory.md).

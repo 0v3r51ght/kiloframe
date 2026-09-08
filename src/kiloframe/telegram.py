@@ -73,7 +73,7 @@ class TelegramBridge:
         ("status", "model, route and resource status"),
         ("cancel", "stop this chat's active and queued work"),
         ("new", "start a fresh conversation"),
-        ("local", "use the private local GGUF"),
+        ("local", "use the configured Ollama route"),
         ("cloud", "use the default or named cloud model"),
         ("switch", "switch between local and cloud"),
         ("models", "list cloud models"),

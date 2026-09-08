@@ -1,6 +1,6 @@
 [Unit]
 Description=KiloFrame local-first AI daemon
-Documentation=https://github.com/citadelconsortium/kiloframe
+Documentation=https://github.com/0v3r51ght/kiloframe
 After=network-online.target
 Wants=network-online.target
 

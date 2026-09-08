@@ -511,7 +511,7 @@ class Agent:
             # aclosing is required here: if this generator itself gets closed while
             # suspended mid-iteration (a disconnected chat client), a bare `async for`
             # does not close the inner chat_stream generator, leaking the open HTTP
-            # request to llama-server and its held inference slot indefinitely.
+            # request to Ollama and its held streaming connection indefinitely.
             source = (
                 self.providers.stream(escalated, messages, max_tokens, tool_schemas)
                 if escalated is not None

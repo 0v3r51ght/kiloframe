@@ -1,81 +1,134 @@
-# KiloFrame Commands Reference
+# KiloFrame commands
 
-## Main Commands
+## Shell commands
 
-| Command | Description |
-|---------|-------------|
-| `kiloframe` | Start interactive TUI |
-| `kiloframe chat "message"` | Send a message and stream response |
-| `kiloframe status` | Show daemon and model status |
-| `kiloframe version` | Show version information |
-| `kiloframe doctor` | Run health checks |
-| `kiloframe benchmark` | Test inference speed |
+| Command | Effect |
+|---|---|
+| `kiloframe` | open the full TUI on a real terminal, or the streaming fallback otherwise |
+| `kiloframe chat "message"` | send one prompt and stream its answer |
+| `kiloframe status` | show truthful daemon, Ollama, model, uptime, memory, and recovery state |
+| `kiloframe doctor` | check installation paths, socket, database, Ollama, model, and resources |
+| `kiloframe resources` | print the current host/cgroup resource profile as JSON |
+| `kiloframe model-info` | print active endpoint and selected-model metadata |
+| `kiloframe version` | show KiloFrame and selected runtime information |
+| `kiloframe logs [-n LINES]` | show systemd or detached-daemon logs |
+| `kiloframe start` | start the daemon |
+| `kiloframe stop` | stop the daemon |
+| `kiloframe restart` | stop and start the daemon |
+| `kiloframe benchmark [--prompt TEXT]` | time a real streamed inference |
 
-## Ollama Commands
+## Ollama shell commands
 
-| Command | Description |
-|---------|-------------|
-| `kiloframe local` | Show Ollama status |
-| `kiloframe local status` | Server and model status |
-| `kiloframe local models` | List downloaded models |
-| `kiloframe local ps` | List running models |
-| `kiloframe local pull <model>` | Download a model |
-| `kiloframe local select <model>` | Set active model |
-| `kiloframe local unload [model]` | Unload model from memory |
+| Command | Effect |
+|---|---|
+| `kiloframe local` / `local status` | query active endpoint, version, selected model, downloads, and running models |
+| `kiloframe local models` | list models downloaded on the active Ollama server |
+| `kiloframe local ps` | list models the active server reports loaded/running |
+| `kiloframe local pull MODEL` | stream a model pull on the active server |
+| `kiloframe local select MODEL` | select a model already reported downloaded |
+| `kiloframe local unload [MODEL]` | request that Ollama unload the named or selected model |
+| `kiloframe localset list` | list named endpoints and the active selection |
+| `kiloframe localset add NAME URL` | add or update a local/remote endpoint |
+| `kiloframe localset default NAME` | make a named endpoint active |
+| `kiloframe localset remove NAME` | remove an endpoint from KiloFrame configuration |
 
-## Server Management
+Model selection is stored per endpoint. It does not download or load the model. Use
+`models` to establish download state and `ps` to establish loaded state.
 
-| Command | Description |
-|---------|-------------|
-| `kiloframe localset` | Show servers |
-| `kiloframe localset add <name> <url>` | Add Ollama server |
-| `kiloframe localset remove <name>` | Remove server |
-| `kiloframe localset default <name>` | Set active server |
+## Telegram shell commands
 
-`local select <model>` only selects a model that the active server has actually
-reported as downloaded. It never claims that a remote model exists locally.
+| Command | Effect |
+|---|---|
+| `kiloframe telegram status` | show enabled state, masked token state, and allowed chats |
+| `kiloframe telegram set-token TOKEN` | store or replace the bot token |
+| `kiloframe telegram allow CHAT_ID` | allow a numeric chat ID |
+| `kiloframe telegram disallow CHAT_ID` | remove a chat ID |
+| `kiloframe telegram disable` | clear the token and disable the bridge |
 
-## Service Commands
+Telegram is optional. Do not place tokens in source files or documentation.
 
-| Command | Description |
-|---------|-------------|
-| `kiloframe start` | Start daemon |
-| `kiloframe stop` | Stop daemon |
-| `kiloframe restart` | Restart daemon |
-| `kiloframe logs [-n LINES]` | Show service logs |
+## Full-TUI slash commands
 
-## Interactive slash commands
+### Help and lifecycle
 
-`/commands` is the complete in-app command list; `/help` adds short usage notes.
-The full TUI also accepts direct forms:
+| Command | Effect |
+|---|---|
+| `/commands` | show every registered TUI command |
+| `/help` | show the shorter usage guide |
+| `/cancel` | cancel the active request and clear queued requests |
+| `/new` | start a new conversation session |
+| `/clear` | clear rendered conversation from the current screen |
+| `/quit`, `/exit`, `/q` | exit the TUI without stopping the daemon |
 
-```text
-/local status
-/local models
-/local ps
-/local pull <model>
-/local select <model>
-/local unload [model]
-/localset list
-/localset add <name> <http(s)://host:11434>
-/localset remove <name>
-/localset default <name>
-/thinking off|on|low|medium|high
-```
+Slash-command completion appears while typing. Commands that require a choice render a
+numbered interactive menu where appropriate; invalid values display usage rather than
+being sent to the model.
 
-`/thinking` is enabled only when the active Ollama model advertises the `thinking`
-capability. Models whose API advertises only generic thinking expose `on`/`off`; effort
-levels are offered only for model families with a documented level control. Cloud
-providers are not presented as supporting it without a verified provider-specific
-control.
+### Ollama and routing
 
-After `/local models`, the TUI also accepts its displayed number, for example
-`/local select 2`. Selection and loading are separate states; the status bar says
-`model selected · not loaded` until Ollama actually loads it.
+| Command | Effect |
+|---|---|
+| `/local` | open the Ollama menu |
+| `/local status` | show real endpoint, selected model, downloads, and loaded count |
+| `/local models` | list and number downloaded models |
+| `/local ps` | list loaded/running models |
+| `/local pull MODEL` | pull with live progress |
+| `/local select MODEL_OR_NUMBER` | select a downloaded model |
+| `/local unload [MODEL]` | unload through Ollama's keep-alive mechanism |
+| `/localset` / `/localset list` | list configured endpoints and open selection flow |
+| `/localset add NAME URL` | add or update an endpoint |
+| `/localset default NAME` | activate an endpoint |
+| `/localset remove NAME` | remove an endpoint |
+| `/switch` | switch between Ollama and the configured cloud route |
 
-## CLI Help
+`/switch` never creates a cloud provider or silently falls back. If none is configured,
+it tells the user to run `/cloud`.
 
-```bash
-kiloframe --help
-kiloframe <command> --help
-```
+### Model behavior
+
+| Command | Effect |
+|---|---|
+| `/thinking off\|on\|low\|medium\|high` | control native model thinking when advertised |
+| `/effort low\|medium\|high` | trade answer/tool budget for speed |
+| `/agent NAME` | force an agent profile |
+| `/agent off` | restore automatic profile selection |
+
+Valid profiles include `orchestrator`, `research`, `coding`, `security`, `math`,
+`engineering`, `systems`, `general`, `conversation`, and `private`. `/thinking` is
+capability-gated: generic thinking models receive only on/off controls, level controls
+are offered only where supported, and unverified cloud controls remain unavailable.
+
+### Optional cloud and privacy
+
+| Command | Effect |
+|---|---|
+| `/cloud` | open provider setup or show the active provider |
+| `/cloud key` | add or replace provider configuration |
+| `/cloud` → `Custom endpoint` | configure an OpenAI-compatible HTTPS URL, model, and key |
+| `/cloud QUESTION` | use the configured provider for one request |
+| `/model` | list the active provider's reported models |
+| `/model NAME_OR_NUMBER` | change the configured cloud model |
+| `/private on` | route web search/fetch through Tor |
+| `/private status` | test the Tor route |
+| `/private rotate` | request a new Tor circuit |
+| `/private off` | return web requests to direct networking |
+
+Private mode fails closed: if Tor is unavailable, a private web request is refused rather
+than sent directly.
+
+### Conversations
+
+| Command | Effect |
+|---|---|
+| `/chats` | list recent terminal sessions |
+| `/kilochats` | list sessions and arm number-to-open selection |
+| `/chat N` | resume a listed session |
+| `/delete` | open the deletion selector |
+| `/delete N` or `/delete N,M` | delete selected listed sessions |
+| `/delete all` | delete all sessions shown by the selector |
+
+Conversation context compacts automatically when the model-input budget is exceeded.
+The TUI reports compaction live; there is no manual `/compact` command because persistent
+history remains available while only the model-facing context is bounded.
+
+Use `kiloframe --help` and `kiloframe <command> --help` for parser-generated syntax.

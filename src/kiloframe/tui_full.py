@@ -933,8 +933,7 @@ class KiloApp:
         await self._list_chats()
 
     async def _cloud_setup(self, pending_question: str | None = None, force_key: bool = False) -> None:
-        """Show the provider catalog and await a pick. Users only ever supply an API key:
-        the base URL and default model come from the catalog."""
+        """Show built-in providers, configured custom providers, and custom setup."""
         try:
             data = await self.client.request("providers_catalog")
         except (ConnectionError, FileNotFoundError, OSError) as exc:
@@ -942,6 +941,9 @@ class KiloApp:
             return
         self._catalog = data
         self._cloud_options = list((data.get("known") or {}).items())
+        self._cloud_options.append(("custom", {
+            "label": "Custom endpoint", "model": "OpenAI-compatible HTTPS"
+        }))
         configured = set(data.get("configured", []))
         lines = ["\n☁ choose a cloud provider — type its number, then paste your API key:"]
         for i, (name, meta) in enumerate(self._cloud_options, 1):
@@ -1069,12 +1071,54 @@ class KiloApp:
             if name in set(self._catalog.get("configured", [])) and not pending.get("force_key"):
                 self._run_cloud(name, pending.get("question"))
                 return
+            if name == "custom":
+                self._append("\n☁ custom provider name (lowercase letters, numbers, '-' or '_'):\n")
+                self._pending = {"kind": "cloud_custom_name", "question": pending.get("question")}
+                return
             if name == "cloudflare":
                 self._append("\n☁ enter your Cloudflare account ID:\n")
                 self._pending = {"kind": "cloud_account", "name": name, "question": pending.get("question")}
             else:
                 self._append(f"\n☁ paste your {name} API key and press Enter:\n")
                 self._pending = {"kind": "cloud_key", "name": name, "question": pending.get("question")}
+            return
+        if kind == "cloud_custom_name":
+            name = text.strip().lower()
+            if not re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,39}", name) or name == "custom":
+                self._append("\n⚠ invalid custom provider name\n")
+                return
+            self._append("\n☁ OpenAI-compatible base URL (https://…/v1):\n")
+            self._pending = {"kind": "cloud_custom_url", "name": name, "question": pending.get("question")}
+            return
+        if kind == "cloud_custom_url":
+            url = text.strip().rstrip("/")
+            if not url.startswith("https://"):
+                self._append("\n⚠ custom cloud endpoints must use https://\n")
+                return
+            self._append("\n☁ model name served by this endpoint:\n")
+            self._pending = {"kind": "cloud_custom_model", "name": pending["name"], "base_url": url, "question": pending.get("question")}
+            return
+        if kind == "cloud_custom_model":
+            if not text.strip():
+                self._append("\n⚠ a model name is required\n")
+                return
+            self._append("\n☁ API key (stored in the protected provider configuration):\n")
+            self._pending = {"kind": "cloud_custom_key", "name": pending["name"], "base_url": pending["base_url"], "model": text.strip(), "question": pending.get("question")}
+            return
+        if kind == "cloud_custom_key":
+            try:
+                res = await self.client.request(
+                    "configure_custom_provider", name=pending["name"],
+                    base_url=pending["base_url"], model=pending["model"], api_key=text,
+                )
+            except (ConnectionError, FileNotFoundError, OSError) as exc:
+                self._append(f"\n⚠ could not save custom endpoint: {exc}\n")
+                return
+            if not res.get("ok"):
+                self._append(f"\n⚠ {res.get('error', 'could not configure custom endpoint')}\n")
+                return
+            self._append(f"\n✓ {res.get('label', pending['name'])} configured.\n")
+            self._run_cloud(pending["name"], pending.get("question"))
             return
         if kind == "cloud_account":
             if not text.strip() or not text.strip().replace("-", "").isalnum():

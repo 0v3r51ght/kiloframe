@@ -12,6 +12,8 @@ KiloFrame is a local-first terminal AI agent. It uses an Ollama server you confi
 (on the same machine or a remote host) and can use separately configured cloud
 providers. The full TUI keeps Kilo’s streamed work, tool activity, and answer in one
 response box, with a sidebar for real route, model, task, context, and process state.
+The `/cloud` picker supports built-in services and custom OpenAI-compatible HTTPS
+endpoints; cloud routing remains explicit and requires the operator's credentials.
 
 ## Install
 
@@ -67,7 +69,8 @@ model is loaded. Use `kiloframe local ps` for the server’s current runtime sta
 - [CLI and slash-command reference](docs/COMMANDS.md)
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
 - [Architecture](docs/ARCHITECTURE.md)
-- [Wiki source](docs/WIKI.md) and the repository Wiki
+- [Comprehensive Wiki](https://github.com/0v3r51ght/kiloframe/wiki) and its
+  [version-controlled source](docs/WIKI.md)
 
 ## Verify an installer download
 

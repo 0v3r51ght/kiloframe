@@ -196,3 +196,21 @@ class ProviderConfigureTests(unittest.TestCase):
             self.assertEqual(mode, 0o600)
             # A fresh registry reading the same file sees it (live, no restart).
             self.assertIn("groq", ProviderRegistry(path).providers())
+
+    def test_custom_openai_compatible_endpoint_is_configured(self):
+        with tempfile.TemporaryDirectory() as raw:
+            registry = ProviderRegistry(Path(raw) / "providers.json")
+            provider = registry.configure_custom(
+                "my_gateway", "https://llm.example.test/v1/", "example/model", "secret"
+            )
+            self.assertEqual(provider.base_url, "https://llm.example.test/v1")
+            self.assertEqual(provider.model, "example/model")
+            self.assertEqual(registry.default_name(), "my_gateway")
+
+    def test_custom_endpoint_rejects_plaintext_and_reserved_names(self):
+        with tempfile.TemporaryDirectory() as raw:
+            registry = ProviderRegistry(Path(raw) / "providers.json")
+            with self.assertRaises(ProviderError):
+                registry.configure_custom("gateway", "http://llm.example.test/v1", "m", "k")
+            with self.assertRaises(ProviderError):
+                registry.configure_custom("openai", "https://llm.example.test/v1", "m", "k")

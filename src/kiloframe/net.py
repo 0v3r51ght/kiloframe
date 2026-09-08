@@ -5,7 +5,7 @@ Privacy here is fail-closed: a caller that wants a request masked must check
 falling back to a direct connection that would expose the real IP.
 
 Routing is per-connection (a custom urllib opener), never a global ``socket.socket``
-monkeypatch — the daemon holds other connections (llama-server, the RPC socket) that must
+monkeypatch — the daemon holds other connections (Ollama streams, the RPC socket) that must
 stay direct. DNS is resolved through Tor (``rdns``) so lookups do not leak locally either.
 """
 

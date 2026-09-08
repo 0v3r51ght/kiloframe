@@ -1,91 +1,36 @@
-# Framework Builder Notes / Handoff
+# KiloFrame maintainer notes
 
-This is the maintainer handoff for future agents. The framework is the reusable
-brain-free edition of KiloFrame.
+This file records invariants that future changes must preserve. User-facing setup and
+operation belong in the [Wiki](WIKI.md).
 
 ## Product contract
 
-The framework supplies the orchestrator, agent profiles, tools, memory, MCP,
-approval/security policy, Telegram bridge, and bordered TUI. It does **not** ship
-weights. Operators choose `/cloud` or deploy their own GGUF with `/gguf` or
-`kilo brain deploy PATH`.
+- Ollama is KiloFrame's local/private inference route. Do not restore a direct GGUF
+  download or runtime subsystem.
+- The active Ollama endpoint is configurable and may be local or remote. Always query
+  that endpoint for its downloads and running models.
+- Cloud inference is explicit per route or request. Never make it an automatic fallback.
+- The TUI keeps Sir's input distinct from Kilo's bordered response. Tool activity,
+  recovery, compaction, and failure events remain inside Kilo's response presentation.
+- Status is evidence-based. Do not label an endpoint reachable, a model loaded, or the
+  system ready without the corresponding RPC/Ollama evidence.
+- Superpowers, Serena, Context7, and Playwright CLI are installer-provisioned. Exa,
+  GitHub MCP, and Firecrawl remain disabled until their credentials are configured.
+- Permission gates, path policy, remote allow-lists, and the tool audit trail are not
+  optional UI conventions; they are security boundaries.
 
-The same Sir directive, evidence-first grounding, follow-through loop, and
-approval boundaries apply here. Do not silently turn cloud mode into an
-automatic fallback or remove destructive-action approval.
+## Release workflow
 
-The security profile has no canned playbook. It operates only on the exact target and
-scope Sir supplies, derives a custom method from evidence and steering, and can recall/save
-verified methods. Do not restore the removed seeded security-playbook memory.
+1. Run `bash -n scripts/install.sh scripts/install-online.sh scripts/uninstall.sh`.
+2. Run `PYTHONPATH=src python3 -m unittest discover -s tests -v`.
+3. Exercise the published one-line installer on the target environment.
+4. Inspect `kiloframe status`, `kiloframe doctor`, and integration startup logs.
+5. Use a real terminal to test `/commands`, `/local`, `/localset`, `/thinking`, session
+   commands, cancellation, and a genuine model response.
+6. Exercise uninstall and reinstall when installer behavior changes.
+7. Audit public files for stale branding, private addresses, secrets, and documentation
+   that no longer matches the implementation.
+8. Synchronize `docs/wiki/` to the hosted GitHub Wiki.
 
-## Provider catalog
-
-OpenAI-compatible entries include OpenRouter, OpenAI, Anthropic, Groq, DeepSeek,
-Together, Mistral, xAI, Gemini, Cerebras, Fireworks, Perplexity, Nebius,
-Hyperbolic, Cohere, SambaNova, Alibaba Qwen, Hugging Face Inference Providers,
-Cloudflare Workers AI, Ollama Cloud, Agnes AI, ModelScope, LLM7.io, OpenCode Zen, and
-GLHF.chat. Keys are stored in a 0600 providers file and providers require
-HTTPS. Cloudflare requires an account-scoped base URL or
-`KILOFRAME_CLOUDFLARE_ACCOUNT_ID`; `/model` fetches the selected provider's live model
-catalog. GitHub Models was retired in July 2026 and is intentionally not advertised.
-Only actual inference endpoints appear in KiloFrame's provider catalog. Groq uses
-`https://api.groq.com/openai/v1`; requests include a project user-agent to avoid
-edge-signature blocking, and retired `llama-3.3-70b-versatile` configs migrate to
-`llama-3.1-8b-instant` on read.
-
-The replacement integrations use these documented defaults: Ollama Cloud
-`https://ollama.com/v1` (`gpt-oss:120b`), Agnes AI
-`https://apihub.agnes-ai.com/v1` (`agnes-2.0-flash`), ModelScope
-`https://api-inference.modelscope.cn/v1` (`Qwen/Qwen3-32B`), LLM7.io
-`https://api.llm7.io/v1` (`fast`), OpenCode Zen
-`https://opencode.ai/zen/v1` (`big-pickle`), and GLHF.chat
-`https://glhf.chat/api/openai/v1` (`hf:meta-llama/Llama-3.3-70B-Instruct`).
-
-## Install / use
-
-The one-line installer bootstraps this repository, installs the app/service, and
-does not download a brain. Use `/cloud` for a configured provider or `/gguf` for
-an operator-supplied local model. `/botkey` configures Telegram through the daemon
-RPC. Telegram publishes real command autocomplete and provides `/local`, `/cloud`,
-`/switch`, `/model`, and `/agent` routing per chat. Allow-listed chats receive every built-in
-tool; non-safe actions require one-time Approve/Deny callbacks bound to that chat.
-Progress animates every 1.2 seconds and a second persistent card shows the bounded,
-redacted work log and live reply preview. `agent.py` recovers XML-like tool calls emitted
-inside a provider's text stream, but only for names in the already-filtered interface
-schema; `telegram_render.py` renders the final Markdown as Telegram-safe HTML.
-It collapses provider whitespace outside code, safely splits long formatted messages, and
-reports context for the active route instead of reusing the local 8192-token value in cloud
-mode. Providers that do not advertise a limit are labelled `provider-managed`.
-`/cancel` and the Stop button cancel only that chat's tracked active/queued tasks.
-Research-profile turns require successful `web_search` and `web_fetch` calls before an
-answer is accepted. Intermediate planning and promise text is reset from clients; repeated
-general non-performance is reported as failure instead of false completion.
-The full-screen TUI preserves the v1.13.0 framework renderer: its original agent row, `◈`
-tool activity/results, faint divider, and answer share one Kilo border. Pygments styles only
-fenced-code content using the declared language. Do not split the turn into live-work/answer
-boxes or add capability-manifest rows.
-Cloud providers receive native tool schemas first, with a schema-bearing JSON text-tool
-fallback for models/endpoints that reject the native field. XML-function and JSON envelopes
-are still validated against the active interface allow-list before dispatch.
-The live stats bar intentionally omits the user's request text so status indicators stay
-compact; it shows phase, request count, tools, tokens, model, queue, and context instead.
-The animated context meter is local-only; cloud mode omits context from the status bar.
-The TUI retains background RPC/monitor tasks and shows their live count in the stats bar;
-the daemon separately monitors and restarts a failed local runtime.
-Past-chat selectors include local date/time. OpenRouter free-model discovery accepts both
-`:free` IDs and zero-priced catalogue entries.
-
-## Verification and limits
-
-The full suite is 146 tests and passes. The Framework installer is intentionally
-usable without `llama-server` for cloud-only operation. Local GGUF performance is
-bounded by the target machine; advanced coding/security work should use capable
-hardware or an explicitly selected cloud model. Keep the security profile and
-permission gate intact.
-
-## Handoff checklist
-
-Run the full unittest discovery, shell-check both installers, verify provider
-catalog HTTPS/default models, and exercise `kilo status`, `/commands`, `/botkey`,
-`/cloud`, `/gguf`, and approval prompts before release. Update this file and the
-wiki when contracts, providers, or brain provenance changes.
+Do not update a fixed test-count claim here; the suite is authoritative and changes as
+coverage is added.
