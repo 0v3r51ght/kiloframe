@@ -57,6 +57,8 @@ class InstallationTests(unittest.TestCase):
         self.assertNotIn("0v3r51ght/kiloframe-framework", script)
         self.assertIn("/usr/local/bin/kiloframe restart", script)
         self.assertIn("/usr/local/bin/kiloframe status", script)
+        self.assertIn("Cache-Control: no-cache", script)
+        self.assertIn("CACHE_BUSTER", script)
 
     def test_installer_seeds_a_default_ollama_server(self):
         install = (Path(__file__).parents[1] / "scripts" / "install.sh").read_text()
