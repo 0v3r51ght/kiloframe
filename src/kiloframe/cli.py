@@ -150,8 +150,15 @@ def _manual_service_action(action: str, settings: Settings) -> int:
                 print("KiloFrame daemon stopped.")
                 return 0
             time.sleep(0.1)
-        print(f"KiloFrame daemon pid {pid} did not stop within 10 seconds.", file=sys.stderr)
-        return 1
+        # A blocked MCP child or model request can prevent graceful shutdown.
+        # Installation/restart must still be reliable, so force-stop only the
+        # verified daemon PID after the grace period.
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        print(f"KiloFrame daemon pid {pid} force-stopped after graceful timeout.", file=sys.stderr)
+        return 0
 
     def start() -> int:
         pid = _manual_daemon_pid(settings)
