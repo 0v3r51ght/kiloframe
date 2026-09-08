@@ -117,7 +117,12 @@ class OllamaRuntime:
         prompt_chars = len(json.dumps(payload.get("messages") or [], ensure_ascii=False))
         prompt_chars += len(json.dumps(payload.get("tools") or [], ensure_ascii=False))
         required = (prompt_chars + 1) // 2 + int(payload.get("max_tokens") or 1536) + 512
-        context_tokens = max(self.settings.ollama_context_tokens, ((required + 1023) // 1024) * 1024)
+        # Keep simple conversations inside the configured conservative budget. Raising
+        # context for the directive alone can exhaust small Ollama GPUs before token 1.
+        if payload.get("tools"):
+            context_tokens = max(self.settings.ollama_context_tokens, ((required + 1023) // 1024) * 1024)
+        else:
+            context_tokens = self.settings.ollama_context_tokens
         async for event in self.client().chat_stream(
             model=model,
             messages=payload.get("messages") or [],
