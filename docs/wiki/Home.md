@@ -17,7 +17,8 @@ and conversation compaction appear live inside Kilo's response box.
 - `/localset` is a guided, selectable setup flow for local or remote Ollama endpoints.
 - `/switch` immediately activates the last configured cloud provider on a fresh TUI,
   then switches back to Ollama on the next use.
-- `/cloud` accepts a provider-name fragment to filter the selectable provider catalog.
+- `/cloud` includes a visible **Search provider catalog…** action and also accepts a
+  provider-name fragment to filter the selectable catalog.
 - `/local` can select, preload, unload, pull, and inspect models without leaving the TUI.
 - `/mcp` shows the daemon's live MCP inventory, including connected, disabled, and failed
   servers plus their discovered tool counts.

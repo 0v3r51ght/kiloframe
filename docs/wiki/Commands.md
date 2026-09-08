@@ -8,8 +8,9 @@ menus. `/localset`, `/cloud`, `/model`, `/agent`, `/effort`, `/thinking`, `/priv
 `/chats`, and `/mcp` use selection first and only ask for free text when an address,
 credential, custom model, or other value is genuinely required.
 
-When `/cloud` is open, type a fragment such as `groq`, `nvidia`, or `kimi` and press
-Enter to filter the catalog, then use the normal arrow-key selection. `/switch` activates
+When `/cloud` is open, select **Search provider catalog…**, type a fragment such as
+`groq`, `nvidia`, or `kimi`, and press Enter to filter the catalog; direct typing in the
+picker also filters it. Then use the normal arrow-key selection. `/switch` activates
 the persisted configured cloud provider even after reopening KiloFrame; the next
 `/switch` returns to Ollama.
 

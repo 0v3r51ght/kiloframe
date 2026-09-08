@@ -78,8 +78,10 @@ provider, run `/cloud`, choose the provider, and complete its key/model setup fi
 ## I want to load a downloaded Ollama model before asking a question
 
 Use `/local`, select **Load a model now**, and select a downloaded model. This sends a
-keep-alive preload request to the active Ollama server. Use `/local ps` to verify it is
-running; use `/local unload` when finished.
+keep-alive preload request to the active Ollama server and waits up to three minutes for
+slow remote/CPU-only model loads. Use `/local ps` to verify it is running; use `/local
+unload` when finished. A timeout is the Ollama server failing to load the model in that
+window, not a false success from KiloFrame.
 
 ## Required integration unavailable
 

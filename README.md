@@ -39,7 +39,10 @@ Inside KiloFrame, use `/localset` for a guided Ollama URL setup, `/mcp` to see e
 server and discovered tool, and `/commands` for the canonical command list. `/switch`
 uses the saved default cloud provider automatically, even in a newly opened TUI;
 the next `/switch` returns to Ollama. `/cloud` accepts a provider-name fragment to filter
-the catalog, and `/local` can preload a downloaded model before the first prompt.
+the catalog through a visible **Search provider catalog…** action, and `/local` can
+preload a downloaded model before the first prompt. Remote or CPU-only model preloads
+wait up to three minutes because loading a multi-gigabyte model is not a normal quick
+status request.
 Commands with choices use arrow-key selection and Enter; text is requested only for
 values such as an endpoint, model name, or API key.
 
