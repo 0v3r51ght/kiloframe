@@ -96,9 +96,10 @@ protected runtime configuration—never in the repository or Wiki.
 
 ## Telegram self-service activation
 
-After storing a real bot token with `/botkey` or `sudo kiloframe telegram set-token`, the
-bridge starts even when no chat is yet allowed. A Telegram user activates their own chat by
-sending `/start`; KiloFrame records that chat ID and immediately sends the normal introduction.
+After storing a real bot token with `/botkey` in the TUI or
+`sudo kiloframe telegram set-token` in a shell, the bridge starts even when no chat is yet
+allowed. A Telegram user activates their own chat by sending `/start`; KiloFrame records
+that chat ID and immediately sends the normal introduction.
 Messages from a chat that has not sent `/start` are ignored. Use
 `sudo kiloframe telegram status` to review the resulting allow-list.
 
@@ -108,8 +109,10 @@ The bot exposes the same local/cloud route controls as the TUI. Use `/local` to 
 Ollama, `/cloud` to select an explicitly configured provider, or `/switch` to toggle between
 them. `/local_models`, `/local_ps`, `/local_load [MODEL]`, and `/local_unload [MODEL]` query
 and control model residency on the active Ollama endpoint; `/model` selects the model for
-the active route. These controls report live server state and do not imply that a model is
-loaded until Ollama reports it.
+the active route. When the route is cloud, `/models` displays the provider's live catalogue
+and inline model-selection buttons. Local load/unload controls are not shown or executed
+on the cloud route. These controls report live server state and do not imply that a model
+is loaded until Ollama reports it.
 
 Every natural-language Telegram reply passes through Kilo's Core Directive for both local
 and cloud inference. The bridge also normalizes the final combined stream, which covers

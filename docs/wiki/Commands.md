@@ -112,6 +112,7 @@ the displayed number where documented.
 - `/local ps` — models reported loaded/running.
 - `/local pull MODEL` — live pull progress.
 - `/local select MODEL_OR_NUMBER` — select a downloaded model.
+- `/local load [MODEL]` — load a downloaded model; without a name, choose from the list.
 - `/local unload [MODEL]` — request unload.
 - `/localset` or `/localset list` — configured endpoint menu.
 - `/localset add NAME URL` — add/update an endpoint.

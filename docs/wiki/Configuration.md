@@ -12,7 +12,7 @@ validation and atomic updates.
 | `/etc/kiloframe/mcp.json` | MCP commands, arguments, environments, enabled flags | installer; careful operator edit for optional services |
 | `/etc/kiloframe/policy.json` | command/path permission policy | administrator review/edit |
 | `/etc/kiloframe/providers.json` | optional cloud endpoints, models, credentials | `/cloud`, `/model` |
-| `/etc/kiloframe/telegram.json` | token and allowed chat IDs | `/botkey` or `kiloframe telegram ...` |
+| `/etc/kiloframe/telegram.json` | token and allowed chat IDs | TUI `/botkey` or `kiloframe telegram ...` |
 
 Configuration is owned by the service account/group and sensitive files use mode `0600`.
 Do not relax the runtime socket or credential files to world-readable/writable.

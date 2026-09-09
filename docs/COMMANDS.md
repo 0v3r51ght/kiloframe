@@ -99,6 +99,7 @@ being sent to the model.
 | `/local ps` | list loaded/running models |
 | `/local pull MODEL` | pull with live progress |
 | `/local select MODEL_OR_NUMBER` | select a downloaded model |
+| `/local load [MODEL]` | load a downloaded model into Ollama memory |
 | `/local unload [MODEL]` | unload through Ollama's keep-alive mechanism |
 | `/localset` / `/localset list` | list configured endpoints and open selection flow |
 | `/localset add NAME URL` | add or update an endpoint |

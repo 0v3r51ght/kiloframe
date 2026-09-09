@@ -8,115 +8,226 @@
   Developed by Citadel Research
 ```
 
-KiloFrame is Kilobyte (“Kilo”): a full-screen terminal agent framework developed by
-Citadel Research. It runs Kilo through the AI brain you select—an Ollama server on this
-machine or another host, or an explicitly configured cloud provider. It is not tied to
-one model or one provider, and it never silently switches a request to a different route.
+# KiloFrame
 
-The TUI preserves Kilo's existing visual design: a dedicated input line, bordered output
-screen, live task/tool activity, sidebar, selectable slash-command workflows, and a
-clickable output scrollbar. Kilo's runtime directive is enforced for local models, cloud
-models, tools, continuation turns, and specialist-agent handoffs.
+KiloFrame is a local-first terminal agent framework developed by Citadel Research. It
+provides one Kilo runtime through a full-screen terminal interface, a scriptable CLI, and
+an optional Telegram bridge. KiloFrame connects to an Ollama server on the local machine
+or on another host, and can use an explicitly selected cloud provider when one is
+configured. The active route is always visible and a failed route is never replaced
+silently.
 
-The optional Telegram bot uses the same directive and route selection. `/local`, `/cloud`,
-`/switch`, `/model`, `/local_models`, `/local_ps`, `/local_load`, and `/local_unload` let a
-permitted chat manage local Ollama or an explicitly configured cloud route; completed
-natural-language replies are normalized to `Sir, ... , Sir.` at delivery time.
+The daemon owns inference, conversations, tools, and integrations. Clients connect to it
+over a group-restricted Unix socket, so the TUI, CLI, and Telegram bridge share the same
+model selection, memory, permissions, and live status. The framework reports state from
+the configured server: downloaded, selected, and loaded are separate model states.
 
-## What KiloFrame contains
+## Capabilities
 
-| Area | Included capability |
-|---|---|
-| Model routes | Local or remote Ollama; explicit cloud route and model switching |
-| Providers | OpenRouter, OpenAI, Anthropic, Gemini, Groq, Together, DeepInfra, DeepSeek, Moonshot/Kimi, NVIDIA NIM, Venice, Z.AI, Scaleway, Cohere, Mistral, Cerebras, Fireworks, SambaNova, Hugging Face, Nebius, Hyperbolic, and ModelScope |
-| Agent runtime | Persistent conversations, bounded context compaction, specialist selection, multi-step tool loops, failure recovery, and completion checks |
-| Tools | Permission-gated filesystem, shell, web, memory, and MCP tools with structured results |
-| MCP | Serena and Context7 enabled by default; GitHub, Exa, and Firecrawl present but disabled until configured |
-| Operations | Rootless daemon service account, normal `kiloframe` client, installer, status, doctor, logs, restart, and uninstall |
+- Full-screen TUI with a bordered Kilo output pane, separate input area, live streaming,
+  activity details, scrollbar, command completion, and a live sidebar.
+- CLI for prompts, service control, status, health checks, resources, logs, and benchmarks.
+- Local or remote Ollama endpoint management, model discovery, pull, selection, loading,
+  unloading, context configuration, and CUDA out-of-memory recovery.
+- Explicit cloud routing with provider and model selection. Supported catalog entries
+  include OpenRouter, OpenAI, Anthropic, Gemini, Groq, Together, DeepInfra, DeepSeek,
+  Moonshot/Kimi, NVIDIA NIM, Venice, Z.AI, Scaleway, Cohere, Mistral, Cerebras,
+  Fireworks, SambaNova, Hugging Face, Nebius, Hyperbolic, ModelScope, Agnes AI, Ollama
+  Cloud, LLM7, OpenCode Zen, and GLHF. Custom OpenAI-compatible HTTPS endpoints are also
+  supported.
+- Real filesystem, shell, system, web search, web fetch, memory, reference, and MCP
+  tools. State-changing operations are approval-gated by the policy engine.
+- Persistent SQLite conversations, bounded context compaction, facts, learned skills,
+  audit records, specialist profiles, and cancellation with per-chat concurrency control.
+- Optional Telegram bot with local/cloud controls, live progress, approval buttons,
+  model selection, and the same Kilo directive used by the TUI and CLI.
+- Installer and uninstaller for systemd and non-systemd hosts. The daemon runs under a
+  dedicated service account and preserves configuration and data during upgrades.
 
-## Start here
+## Requirements
 
-After installation, run `kiloframe`—not `sudo kiloframe`. The installer starts the
-rootless daemon on systemd and non-systemd hosts. Use `kiloframe status` to confirm the
-same daemon/socket is visible to the normal client.
-
-Inside KiloFrame, use `/localset` for a guided Ollama URL setup, `/mcp` to see every MCP
-server and discovered tool, and `/commands` for the canonical command list. `/switch`
-uses the saved default cloud provider automatically, even in a newly opened TUI;
-the next `/switch` returns to Ollama. `/cloud` accepts a provider-name fragment to filter
-the catalog through a visible **Search provider catalog…** action, and `/local` can
-preload a downloaded model before the first prompt. Remote or CPU-only model preloads
-wait up to three minutes because loading a multi-gigabyte model is not a normal quick
-status request.
-Commands with choices use arrow-key selection and Enter; text is requested only for
-values such as an endpoint, model name, or API key.
+The supported installer targets a Linux host with one of `apt`, `pacman`, `dnf`, `zypper`,
+or `apk`, plus network access for the application and required integrations. Python 3.11
+or newer, SQLite, curl, ripgrep, Git, Node.js, and npm are installed or verified by the
+installer. An Ollama server is required for local inference but may run on another host.
+Cloud credentials and Telegram credentials are optional.
 
 ## Install
 
-```bash
-# Stable installer
-curl -fsSL https://raw.githubusercontent.com/0v3r51ght/kiloframe/main/scripts/install-online.sh | sudo bash
+Install the current `main` branch with the online installer:
 
-# Or install a checked-out tree
-git clone https://github.com/0v3r51ght/kiloframe
+```bash
+curl -fsSL https://raw.githubusercontent.com/0v3r51ght/kiloframe/main/scripts/install-online.sh | sudo bash
+```
+
+The installer downloads a cache-busted source archive, installs the application and
+required integrations, creates the `kiloframe` service account, preserves existing
+configuration and SQLite data, starts the daemon, and prints live status. It does not
+download an Ollama model.
+
+To install a checked-out tree:
+
+```bash
+git clone https://github.com/0v3r51ght/kiloframe.git
 cd kiloframe
 sudo ./scripts/install.sh
 ```
 
-The one-line installer installs KiloFrame, starts or restarts its rootless daemon, and
-prints the resulting live status; it does not download a model. On a normal systemd host
-it enables the daemon. On a non-systemd host it starts the same service account daemon
-directly. `sudo kiloframe start|stop|restart` remains available for service control, but
-normal use is simply `kiloframe`; see [Installation](docs/INSTALLATION.md).
+After installation, open a new login session if the installer added your account to the
+`kiloframe` group. Run the client as the normal user; use `sudo` only for service lifecycle
+commands when required.
 
-## First run
+## First local conversation
 
-```text
-$ kiloframe
-❯ /localset add local http://127.0.0.1:11434
-❯ /local models
-❯ /local select <downloaded-model-name>
-❯ Hello, Kilo.
-```
-
-For a remote Ollama server, replace the URL with that server’s URL. KiloFrame queries
-the selected server for downloaded and loaded models; it never labels a model as local,
-loaded, or ready without that server reporting it.
-
-`/help` gives the short in-TUI guide and `/commands` gives the complete command list.
-Command completion is available as you type. The principal model commands are
-`/local`, `/localset`, `/switch`, and `/thinking`.
-
-## Status and recovery
+Check the installation before opening the TUI:
 
 ```bash
 kiloframe status
 kiloframe doctor
-kiloframe local status
 ```
 
-`kiloframe status` reports the daemon PID/uptime, Ollama reachability, selected model,
-and the exact start/recovery command for the host. It does not infer that a selected
-model is loaded. Use `kiloframe local ps` for the server’s current runtime state.
+Configure a local Ollama endpoint and select a model reported by that endpoint:
+
+```text
+/localset add local http://127.0.0.1:11434
+/localset default local
+/local models
+/local select <model-name>
+```
+
+For a remote Ollama host, replace the URL with the address reachable from the KiloFrame
+host. The endpoint owns its own model storage and loaded state; a model downloaded on one
+endpoint is not assumed to exist on another.
+
+Start the interface and send a prompt:
+
+```bash
+kiloframe
+```
+
+Use `/commands` for the complete command list. The most frequently used commands are:
+
+| Command | Purpose |
+|---|---|
+| `/local` | Open the Ollama route menu |
+| `/localset` | Add, remove, select, or inspect Ollama endpoints |
+| `/local models` | List downloaded models on the active endpoint |
+| `/local select MODEL_OR_NUMBER` | Select a server-reported model |
+| `/local load [MODEL]` | Load a downloaded model into Ollama memory |
+| `/local unload [MODEL]` | Unload a model from Ollama memory |
+| `/cloud` | Configure or select a cloud provider |
+| `/model` | List or select a model on the active cloud route |
+| `/switch` | Switch between the configured local and cloud routes |
+| `/thinking` | Configure supported native model thinking |
+| `/cancel` | Cancel active work and clear queued work |
+| `/new` | Start a fresh conversation session |
+| `/chats` | Browse or resume stored sessions |
+| `/mcp` | Inspect live MCP servers and discovered tools |
+
+## Telegram bot
+
+Telegram is disabled until a bot token is configured. Configure it from the host:
+
+```bash
+kiloframe telegram set-token <BOT_TOKEN>
+kiloframe telegram allow <CHAT_ID>
+kiloframe telegram status
+```
+
+Each chat must send `/start` before ordinary messages are accepted. The bot uses the same
+daemon and route boundary as the TUI. `/local`, `/cloud`, and `/switch` select the route;
+`/models` lists models on the active route; and `/model MODEL_ID` selects a model. Cloud
+model lists include inline selection buttons. Ollama load and unload controls are shown
+only while the chat is on the local route. `/local_models`, `/local_ps`, `/local_load`, and
+`/local_unload` never fall through to a cloud provider.
+
+Telegram natural-language replies use the same Kilo directive as local conversations and
+are normalized at delivery so a provider cannot identify Kilo as another assistant or
+creator. Progress and machine work are sent as live status cards, and a slow inference
+does not block commands or other chats.
+
+## Cloud providers
+
+Cloud inference is optional and explicit. Configure a provider in the TUI with `/cloud`
+or use the provider configuration flow described in [Configuration](docs/wiki/Configuration.md).
+KiloFrame validates HTTPS endpoints, keeps credentials in a mode `0600` file, queries live
+model catalogs where supported, and never falls back to local or cloud inference without
+the selected route. Cloud models receive the same tool schemas as local models. A provider
+error is reported as an error; it is not presented as a completed answer.
+
+## Tools, web research, and MCP
+
+The built-in tools include file inspection and writing, bounded command execution, system
+information, public web search and fetch, persistent memory, offline references, and
+repeatable skills. Tool results are recorded and validated before Kilo reports an action
+as successful. Web research uses search followed by source retrieval when the request
+requires current information.
+
+The installer provisions Superpowers, Serena, Context7, and Playwright CLI. Serena and
+Context7 are enabled MCP services. Exa, GitHub MCP, Firecrawl, Telegram, and cloud
+providers remain optional because they require credentials or an external service. Use
+`/mcp` or `kiloframe logs -n 200` to inspect live integration state.
+
+## Status and operations
+
+```bash
+kiloframe status
+kiloframe doctor
+kiloframe resources
+kiloframe logs -n 100
+kiloframe benchmark
+sudo kiloframe restart
+```
+
+`status` distinguishes daemon state, endpoint reachability, model selection, and loaded
+state. `doctor` checks installation paths, the socket, database, Ollama API, model, and
+resources. On a non-systemd host, the same wrapper controls the detached daemon.
+
+Important paths are:
+
+| Path | Contents |
+|---|---|
+| `/usr/local/bin/kiloframe` | Client and service wrapper |
+| `/opt/kiloframe/app` | Installed application |
+| `/opt/kiloframe/integrations` | Required integration assets |
+| `/etc/kiloframe` | Ollama, provider, Telegram, MCP, and policy configuration |
+| `/var/lib/kiloframe` | Persistent SQLite memory and sessions |
+| `/var/log/kiloframe` | Detached daemon logs |
+| `/run/kiloframe` | PID file and group-restricted RPC socket |
+
+## Security model
+
+Local and cloud routes are explicit. The daemon applies path and command policy before
+executing tools, requests approval for state-changing or outward actions, keeps provider
+and Telegram secrets out of source and logs, and exposes only the permitted built-in tool
+set to Telegram. Private web mode fails closed when Tor is unavailable. MCP services run
+as subprocesses and their tools are namespaced and validated before exposure.
 
 ## Documentation
 
-- [Installation and uninstallation](docs/INSTALLATION.md)
-- [CLI and slash-command reference](docs/COMMANDS.md)
-- [Troubleshooting](docs/TROUBLESHOOTING.md)
-- [Architecture](docs/ARCHITECTURE.md)
-- [Comprehensive Wiki](https://github.com/0v3r51ght/kiloframe/wiki) and its
-  [version-controlled source](docs/WIKI.md)
+- [Installation](docs/INSTALLATION.md): supported systems, upgrade, verification, and uninstall
+- [Commands](docs/COMMANDS.md): complete CLI, TUI, and Telegram command reference
+- [Troubleshooting](docs/TROUBLESHOOTING.md): diagnosis by symptom
+- [Architecture](docs/ARCHITECTURE.md): daemon, RPC, agent, tools, and route boundaries
+- [RPC API](docs/API.md): newline-delimited daemon protocol and live event types
+- [Capabilities](docs/CAPABILITIES.md): installed and optional functionality
+- [Wiki source](docs/WIKI.md): synchronized pages for setup, operations, integrations, and testing
+- [Online wiki](https://github.com/0v3r51ght/kiloframe/wiki): rendered documentation
 
-## Verify an installer download
+## Development and verification
+
+Run the syntax checks and test suite from a checkout:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/0v3r51ght/kiloframe/main/scripts/install-online.sh -o install-online.sh
-sha256sum install-online.sh
-# Compare with the SHA-256 published for the release you intend to install.
-sudo bash install-online.sh
+bash -n scripts/install.sh scripts/install-online.sh scripts/uninstall.sh
+PYTHONPATH=src python3 -m unittest discover -s tests -v
+git diff --check
 ```
+
+The release verification workflow also exercises the installer, a real Ollama endpoint,
+the TUI in a real terminal, Telegram route controls, cloud model selection, MCP discovery,
+and failure recovery. See [Testing and verification](docs/wiki/Testing-and-Verification.md).
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+KiloFrame is released under the MIT License. See [LICENSE](LICENSE).

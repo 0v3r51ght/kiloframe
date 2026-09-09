@@ -7,10 +7,10 @@ its model storage, GPU/CPU resources, loaded state, and lifetime.
 ## Endpoint management
 
 ```text
-❯ /localset add workstation http://127.0.0.1:11434
-❯ /localset add lab http://ollama.internal.example:11434
-❯ /localset list
-❯ /localset default lab
+$ /localset add workstation http://127.0.0.1:11434
+$ /localset add lab http://ollama.internal.example:11434
+$ /localset list
+$ /localset default lab
 ```
 
 Names are local labels. URLs must use HTTP or HTTPS. Each named endpoint keeps its own
@@ -21,13 +21,13 @@ Equivalent shell commands are `kiloframe localset add`, `list`, `default`, and `
 ## Model lifecycle
 
 ```text
-❯ /local status
-❯ /local models
-❯ /local pull <model-name>
-❯ /local select <model-name-or-displayed-number>
-❯ Hello, Kilo.
-❯ /local ps
-❯ /local unload [model-name]
+$ /local status
+$ /local models
+$ /local pull <model-name>
+$ /local select <model-name-or-displayed-number>
+$ Hello, Kilo.
+$ /local ps
+$ /local unload [model-name]
 ```
 
 These are deliberately separate states:

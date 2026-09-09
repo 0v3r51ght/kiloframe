@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- Reconciled the README and version-controlled Wiki with the current daemon, TUI, CLI,
+  Ollama, cloud, Telegram, MCP, and installer behavior.
+- Documented explicit route selection, live endpoint/model state, cloud model selection,
+  and the local-only Ollama load and unload controls.
+- Replaced obsolete setup descriptions with verified installation, operations, security,
+  troubleshooting, and testing workflows.
+- Current verification covers 205 automated tests plus production installer and Ollama
+  checks.
+
 ## v1.0.0 (2024-09-07)
 
 ### Complete Rebrand

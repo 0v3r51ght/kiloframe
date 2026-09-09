@@ -55,7 +55,7 @@ installation or operation.
 |---|---|
 | `/usr/local/bin/kiloframe` | user command wrapper |
 | `/opt/kiloframe/app` | installed Python application |
-| `/opt/kiloframe/integrations` | Superpowers and Serena assets |
+| `/opt/kiloframe/integrations` | Superpowers, Serena, Context7, and Playwright assets |
 | `/etc/kiloframe` | Ollama, MCP, policy, provider, and Telegram configuration |
 | `/var/lib/kiloframe` | SQLite conversations, facts, skills, and audit data |
 | `/var/log/kiloframe` | detached-daemon log on non-systemd hosts |

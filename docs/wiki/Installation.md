@@ -41,7 +41,7 @@ installer added your account to the `kiloframe` group; ordinary operation is the
 |---|---|
 | `/usr/local/bin/kiloframe` | command wrapper |
 | `/opt/kiloframe/app` | installed Python package |
-| `/opt/kiloframe/integrations` | Superpowers and Serena installation |
+| `/opt/kiloframe/integrations` | Superpowers, Serena, Context7, and Playwright assets |
 | `/etc/kiloframe` | protected configuration |
 | `/var/lib/kiloframe` | persistent SQLite memory |
 | `/var/log/kiloframe` | detached-daemon log |

@@ -15,6 +15,7 @@ state comes from the selected Ollama server rather than guesses made by the clie
 | [Integrations](wiki/Integrations.md) | Required preconfiguration and optional services |
 | [Configuration](wiki/Configuration.md) | Files, settings, ownership, environment, and backups |
 | [Architecture](wiki/Architecture.md) | Clients, daemon, agent, tools, routes, and RPC |
+| [RPC API](API.md) | Daemon socket, commands, streaming events, and client behavior |
 | [Security and privacy](wiki/Security-and-Privacy.md) | Policy, approvals, secrets, MCP, and Tor |
 | [Operations](wiki/Operations.md) | Status, daemon control, logs, upgrade, and backup |
 | [Troubleshooting](wiki/Troubleshooting.md) | Symptom-based diagnosis and safe recovery |

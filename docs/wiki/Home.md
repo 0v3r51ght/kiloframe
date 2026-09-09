@@ -1,33 +1,33 @@
 # KiloFrame
 
-KiloFrame is Kilobyte (“Kilo”): a full-screen terminal agent framework developed by
-Citadel Research. Its daemon connects Kilo to the AI brain you choose—an Ollama server
-on the same machine or elsewhere, or an explicitly configured cloud provider. The model
-route is always explicit; KiloFrame never silently substitutes a provider or model.
+KiloFrame is a local-first terminal agent framework developed by Citadel Research. It
+runs one Kilo runtime behind three clients: the full-screen TUI, the command-line client,
+and an optional Telegram bridge. All clients use the same daemon, conversation store,
+permission policy, tools, integrations, and route selection.
 
-The interface is evidence-based. The sidebar and footer distinguish configuration from
-live state: an endpoint is not shown online unless it responds; a selected model is not
-shown loaded unless Ollama reports it in `/api/ps`; and failures, tool activity, recovery,
-and conversation compaction appear live inside Kilo's response box.
+The local route is Ollama. Ollama may run on the KiloFrame host or on a separate trusted
+host reachable over HTTP or HTTPS. Cloud inference is optional and explicit. KiloFrame
+never changes route because a request is slow or because another provider is available.
 
-## Current release behavior
+## Current behavior
 
-- Run `kiloframe` as the normal user. It connects to the same rootless daemon as the
-  administrative command; sudo is only needed for service lifecycle operations.
-- `/localset` is a guided, selectable setup flow for local or remote Ollama endpoints.
-- `/switch` immediately activates the last configured cloud provider on a fresh TUI,
-  then switches back to Ollama on the next use.
-- `/cloud` includes a visible **Search provider catalog…** action and also accepts a
-  provider-name fragment to filter the selectable catalog.
-- `/local` can select, preload, unload, pull, and inspect models without leaving the TUI.
-- `/mcp` shows the daemon's live MCP inventory, including connected, disabled, and failed
-  servers plus their discovered tool counts.
-- The output scrollbar responds to click, drag, wheel, PageUp/PageDown, and keeps the
-  viewed position when new output arrives.
-- Kilo's runtime directive applies consistently across model switches, tools, recovery,
-  multi-step work, and specialist-agent execution.
-- Telegram uses the same local/cloud controls and enforces the directive on every completed
-  natural-language reply, including replies from models that omit the required address.
+- The daemon is the only process that owns inference and model state. Clients connect over
+  a group-restricted Unix socket.
+- The active Ollama endpoint, selected model, and loaded model state are reported from live
+  server APIs. Downloaded, selected, and loaded are separate states.
+- The TUI displays streaming output, tool activity, failures, recovery, compaction, and
+  loaded models in the output pane and sidebar. The sidebar changes between local and cloud
+  views and lists actual background processes reported by the daemon.
+- `/localset` manages named Ollama endpoints. `/local` opens the local model menu.
+  `/cloud` selects or configures a provider. `/model` lists or selects a model on the
+  active route. `/switch` changes between the configured routes.
+- Telegram has the same route controls. Cloud model lists provide inline selection buttons;
+  local load and unload controls are visible only on the local route.
+- Built-in tools and connected MCP tools are real, permission-aware operations. Tool
+  failures remain visible and cannot be reported as successful work.
+- The Kilo directive is applied to local and cloud requests, continuation turns, specialist
+  agents, streaming output, and Telegram delivery. Provider identity text cannot replace
+  Kilo or Citadel Research at the client boundary.
 
 ## Quick start
 
@@ -38,55 +38,44 @@ kiloframe doctor
 kiloframe
 ```
 
-Inside the TUI:
+Configure Ollama inside the TUI:
 
 ```text
-❯ /localset add local http://127.0.0.1:11434
-❯ /local models
-❯ /local select <model-reported-by-the-server>
-❯ /commands
-❯ Hello, Kilo.
+/localset add local http://127.0.0.1:11434
+/localset default local
+/local models
+/local select <model-reported-by-the-server>
 ```
 
-An Ollama endpoint is configurable, not an installation prerequisite. If the default
-endpoint is offline, KiloFrame should launch and report that fact accurately.
-
-## What is included
-
-- full-screen terminal UI with separate Sir input and bordered Kilo output;
-- streaming output with live thinking, tools, failures, CPU recovery, and compaction;
-- live sidebar for task, work items, context, active route/model, sessions, and loaded
-  models;
-- local or remote Ollama endpoint management, pull, select, inference, and unload;
-- automatic bounded conversation compaction with persistent SQLite sessions;
-- explicit optional cloud providers without silent fallback;
-- permission-gated built-in and MCP tools;
-- preconfigured Superpowers, Serena, Context7, and Playwright CLI;
-- optional credential-bound Exa, GitHub MCP, Firecrawl, and Telegram;
-- systemd and non-systemd daemon controls;
-- installer, uninstaller, doctor, status, logs, and real inference benchmark.
+For a remote Ollama server, use its reachable URL. KiloFrame does not copy models between
+endpoints and does not infer that a model is loaded before `/api/ps` confirms it.
 
 ## Documentation map
 
-- [Installation](Installation) — supported hosts, one-line install, layout, verification,
-  upgrades, and uninstall
-- [First run](First-Run) — first interactive setup and a human verification checklist
-- [Commands](Commands) — every shell command and full-TUI slash command
-- [Ollama](Ollama) — endpoint, model, thinking, load, unload, and failure behavior
-- [Conversations and memory](Conversations-and-Memory) — sessions, history, compaction,
-  facts, skills, and deletion
-- [Integrations](Integrations) — what is preconfigured, optional, and how to verify it
-- [Configuration](Configuration) — files, ownership, environment settings, and backups
-- [Architecture](Architecture) — daemon, RPC, agent, tools, model routes, and event flow
-- [Security and privacy](Security-and-Privacy) — policy, approvals, secrets, Tor, and MCP
-- [Operations](Operations) — status, service lifecycle, logs, upgrades, and backups
-- [Troubleshooting](Troubleshooting) — symptom-based diagnosis and recovery
-- [Testing and verification](Testing-and-Verification) — source, installer, integration,
-  and real-TUI acceptance checks
+- [First run](First-Run) covers installation checks, endpoint setup, model selection, and
+  real-terminal acceptance.
+- [Installation](Installation) documents supported systems, upgrades, paths, verification,
+  and uninstall.
+- [Commands](Commands) is the canonical CLI, TUI, and Telegram command reference.
+- [Ollama](Ollama) explains endpoint configuration, model lifecycle, thinking controls,
+  context limits, and recovery.
+- [Conversations and memory](Conversations-and-Memory) covers sessions, compaction, facts,
+  skills, and audits.
+- [Integrations](Integrations) identifies installed services and credential-bound optional
+  services.
+- [Configuration](Configuration) documents protected files, environment settings, and
+  backups.
+- [Architecture](Architecture) describes client, daemon, agent, tool, MCP, and provider
+  boundaries.
+- [RPC API](../API.md) documents the daemon socket, commands, and streaming event types.
+- [Security and privacy](Security-and-Privacy) describes policy, approvals, secrets, Tor,
+  and remote Telegram limits.
+- [Operations](Operations) covers health checks, service control, logs, upgrades, and
+  backups.
+- [Troubleshooting](Troubleshooting) provides symptom-based recovery instructions.
+- [Testing and verification](Testing-and-Verification) defines source, installer,
+  integration, Ollama, Telegram, and real-TUI acceptance checks.
 
-## Operating principles
-
-KiloFrame never silently changes route when inference fails. It never treats a configured
-provider as connected, and it never treats a downloaded model as loaded. Credential-bound
-services remain optional. A command or source change is not considered verified until its
-real user workflow has been exercised.
+The version-controlled files under `docs/wiki` are the source for the hosted repository
+Wiki. Code-level details remain in [Architecture](../ARCHITECTURE.md),
+[Capabilities](../CAPABILITIES.md), and [Troubleshooting](../TROUBLESHOOTING.md).
