@@ -209,6 +209,21 @@ def _looks_like_false_capability_denial(content: str | None) -> bool:
 _LEAD_SIR_RE = re.compile(r"^\s*(?:sir\b\s*[,.:;–—-]?\s*)+", re.IGNORECASE)
 _TRAIL_NAME_RE = re.compile(r"[\s,;.–—-]*\b(?:kilo|kiloframe)\b[\s.!,]*$", re.IGNORECASE)
 _TRAIL_SIR_RE = re.compile(r"(?:[\s,;.]*\bsir\b\s*[.!]?)+\s*$", re.IGNORECASE)
+_SELF_IDENTITY_REPLACEMENTS = (
+    (re.compile(r"\bI\s+am\s+Agnes\b", re.IGNORECASE), "I am Kilo"),
+    (re.compile(r"\bI['’]m\s+Agnes\b", re.IGNORECASE), "I'm Kilo"),
+    (re.compile(r"\bmy\s+name\s+is\s+Agnes\b", re.IGNORECASE), "my name is Kilo"),
+    (re.compile(r"\bthis\s+is\s+Agnes\b", re.IGNORECASE), "this is Kilo"),
+    (re.compile(r"\bAgnes\s+(?:here|speaking)\b", re.IGNORECASE), "Kilo"),
+)
+
+
+def enforce_directive_identity(text: str | None) -> str:
+    """Prevent a model from claiming a stale assistant identity in visible output."""
+    out = str(text or "")
+    for pattern, replacement in _SELF_IDENTITY_REPLACEMENTS:
+        out = pattern.sub(replacement, out)
+    return out
 
 
 def _strip_leading_sir(text: str) -> str:
@@ -230,7 +245,9 @@ def _strip_trailing_flourish(text: str) -> str:
 
 def enforce_directive_address(text: str | None) -> str:
     """Enforce the Core Directive's address at every client boundary."""
-    body = _strip_trailing_flourish(_strip_leading_sir(str(text or ""))).strip()
+    body = _strip_trailing_flourish(
+        _strip_leading_sir(enforce_directive_identity(text))
+    ).strip()
     if not body:
         return "Sir, the model returned no answer; the task is not complete, Sir."
     return f"Sir, {body}, Sir."
@@ -542,6 +559,7 @@ class Agent:
                     delta = event.get("delta", {})
                     content = delta.get("content")
                     if content:
+                        content = enforce_directive_identity(content)
                         content_parts.append(content)
                         if inline_markup:
                             continue
@@ -599,7 +617,7 @@ class Agent:
                     emitted_this_step = True
                     yield {"type": "token", "text": pending_content}
 
-            content = "".join(content_parts)
+            content = enforce_directive_identity("".join(content_parts))
             tool_calls = [calls[index] for index in sorted(calls)]
             allowed_names = {
                 schema.get("function", {}).get("name", "") for schema in tool_schemas

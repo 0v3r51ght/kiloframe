@@ -27,6 +27,7 @@ import re
 import shutil
 import textwrap
 import time
+from urllib.parse import urlsplit
 from pathlib import Path
 from typing import Any
 
@@ -441,6 +442,19 @@ class KiloApp:
             return "model loaded"
         return "model selected · not loaded"
 
+    def _ollama_route_label(self) -> str:
+        """Show the real Ollama destination without exposing an internal config label."""
+        raw = str(self.status.get("server") or self.server_name or "").strip()
+        if not raw:
+            return "Ollama"
+        try:
+            host = urlsplit(raw).hostname or raw
+        except ValueError:
+            host = raw
+        if host in {"localhost", "127.0.0.1", "::1"}:
+            return "Ollama · local"
+        return "Ollama · " + host
+
     def _banner_text(self):
         width = shutil.get_terminal_size((80, 24)).columns
         state = self._route_state()
@@ -449,7 +463,7 @@ class KiloApp:
             [("class:banner.hi", "KILOFRAME  "), ("class:on" if online else "class:off", state)],
             [("class:tagline", "Cloud inference" if self.cloud_active else "Local / private · Ollama")],
             [("class:on", "model   " + self.model_name)],
-            [("class:dim", "route   " + (self.cloud_provider if self.cloud_active else self.server_name))],
+            [("class:dim", "route   " + (self.cloud_provider if self.cloud_active else self._ollama_route_label()))],
             [("class:dim", "work    " + (self.phase if self.busy else "idle"))],
             [("class:tagline", "/help · F2 sidebar · Ctrl-Q quit")],
         ]
@@ -513,7 +527,7 @@ class KiloApp:
             rows.append((style, " " + str(value)[:28] + "\n"))
         line("CLOUD INFERENCE" if self.cloud_active else "LOCAL / PRIVATE", "class:panel.title")
         line(self._short_model(), "class:panel.hi")
-        line(self.cloud_provider if self.cloud_active else (self.status.get("server_name") or self.server_name or "Ollama"))
+        line(self.cloud_provider if self.cloud_active else self._ollama_route_label())
         line(self._route_state(), "class:dim")
         line("working · " + (self.phase or "starting") if self.busy else "idle", "class:kilo")
         rows.append(("", "\n"))

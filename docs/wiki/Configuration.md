@@ -64,7 +64,7 @@ in later provider pickers and use the same explicit `/switch` behavior.
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `KILOFRAME_OLLAMA_CONTEXT_TOKENS` | `2048` | context requested from Ollama |
+| `KILOFRAME_OLLAMA_CONTEXT_TOKENS` | `8192` | context requested from Ollama |
 | `KILOFRAME_DATA_DIR` | `/var/lib/kiloframe` | SQLite/data directory |
 | `KILOFRAME_CONFIG_DIR` | `/etc/kiloframe` | configuration directory |
 | `KILOFRAME_RUNTIME_DIR` | `/run/kiloframe` | PID/socket directory |

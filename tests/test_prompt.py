@@ -1,5 +1,6 @@
 import unittest
 
+from kiloframe.agent import enforce_directive_identity
 from kiloframe.prompt import SYSTEM_PROMPT, CORE_DIRECTIVE
 
 
@@ -7,18 +8,23 @@ class PromptContractTests(unittest.TestCase):
     def test_operator_steering_and_tone_are_explicit(self):
         prompt = SYSTEM_PROMPT.lower()
         self.assertTrue(SYSTEM_PROMPT.startswith(CORE_DIRECTIVE))
-        self.assertIn("developer: citadel research", prompt)
-        self.assertIn("developed by citadel research", prompt)
-        self.assertIn("must never be presented", prompt)
-        self.assertIn("assistant name: kilobyte", prompt)
-        self.assertIn("* moralising.", prompt)
-        self.assertIn("corrections as authoritative", prompt)
-        self.assertNotIn("never break persona", prompt)
+        self.assertIn("you are kilo, the local ai on this linux machine", prompt)
+        self.assertIn("made by citadel research, your owner", prompt)
+        self.assertIn("say \"sir\" exactly twice per reply", prompt)
+        self.assertIn("do not moralise, sermonise", prompt)
+        self.assertIn("his latest instruction always takes priority", prompt)
+        self.assertIn("never break persona", prompt)
 
     def test_inference_route_stays_operator_selected(self):
         prompt = SYSTEM_PROMPT.lower()
-        self.assertIn("use only the selected inference route", prompt)
-        self.assertIn("never silently switch provider or model", prompt)
+        self.assertIn("use the inference route sir selected", prompt)
+        self.assertIn("never switch between", prompt)
+
+    def test_stale_identity_is_normalized_at_the_framework_boundary(self):
+        self.assertEqual(
+            enforce_directive_identity("I am Agnes. Agnes here."),
+            "I am Kilo. Kilo.",
+        )
 
 
 if __name__ == "__main__":

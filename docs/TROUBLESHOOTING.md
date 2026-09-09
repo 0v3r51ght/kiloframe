@@ -95,7 +95,7 @@ box and in `kiloframe logs`.
 
 ## CUDA out of memory or slow inference
 
-KiloFrame requests a 2048-token context by default. When Ollama reports a CUDA
+KiloFrame requests an 8192-token context by default. When Ollama reports a CUDA
 out-of-memory error during automatic placement, KiloFrame reports one CPU fallback retry
 live. It does not loop or report a second failure as success.
 

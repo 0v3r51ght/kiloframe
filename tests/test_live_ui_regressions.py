@@ -87,6 +87,13 @@ class LiveUI(unittest.IsolatedAsyncioTestCase):
             positions = [lines[i].find(label) for i,label in [(2,"model"),(3,"route"),(4,"work")]]
             self.assertEqual(len(set(positions)),1)
 
+    async def test_sidebar_uses_ollama_destination_instead_of_internal_server_label(self):
+        app = KiloApp(Client())
+        app.status.update({"server": "http://192.168.1.172:11434", "server_name": "ceo-test"})
+        text = "".join(value for _style, value in app._sidebar_text())
+        self.assertIn("Ollama · 192.168.1.172", text)
+        self.assertNotIn("ceo-test", text)
+
     async def test_real_child_process_appears_and_disappears(self):
         process = subprocess.Popen(["sleep","10"])
         try:
