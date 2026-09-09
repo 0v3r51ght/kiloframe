@@ -43,6 +43,14 @@ class CapturingRuntime(FakeRuntime):
         yield {"delta": {"content": "ready"}}
 
 
+class IdentityRuntime(FakeRuntime):
+    async def ensure_ready(self):
+        pass
+
+    async def chat_stream(self, payload):
+        yield {"delta": {"content": "Sir, I am Agnes, Sir."}}
+
+
 class DuplicateToolRuntime(FakeRuntime):
     def __init__(self):
         self.payloads = []
@@ -173,6 +181,19 @@ class CapabilityDenialRuntime(FakeRuntime):
 
 
 class AgentTests(unittest.IsolatedAsyncioTestCase):
+    async def test_stream_enforces_kilo_identity_and_exact_address(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            settings = Settings(data_dir=root, config_dir=root, runtime_dir=root, log_dir=root, home=root)
+            memory = MemoryStore(root / "memory.db")
+            tools = ToolRegistry(settings, memory, PermissionManager(root / "policy.json"))
+            events = [
+                event
+                async for event in Agent(settings, IdentityRuntime(), memory, tools).run("who are you")
+            ]
+            answer = "".join(event.get("text", "") for event in events if event["type"] == "token")
+            self.assertEqual(answer, "Sir, I am Kilo, Sir.")
+
     def test_inline_json_tool_envelope_is_recovered(self):
         raw = (
             'Checking.<tool_call>{"name":"web_search","arguments":'

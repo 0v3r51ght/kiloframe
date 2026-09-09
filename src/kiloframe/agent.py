@@ -209,6 +209,10 @@ def _looks_like_false_capability_denial(content: str | None) -> bool:
 _LEAD_SIR_RE = re.compile(r"^\s*(?:sir\b\s*[,.:;–—-]?\s*)+", re.IGNORECASE)
 _TRAIL_NAME_RE = re.compile(r"[\s,;.–—-]*\b(?:kilo|kiloframe)\b[\s.!,]*$", re.IGNORECASE)
 _TRAIL_SIR_RE = re.compile(r"(?:[\s,;.]*\bsir\b\s*[.!]?)+\s*$", re.IGNORECASE)
+_SELF_NAME_TAIL_RE = re.compile(
+    r"\b(?:i\s+am|i['’]m|my\s+name\s+is|this\s+is)\s+kilo\s*[,.;!?]*\s*$",
+    re.IGNORECASE,
+)
 _SELF_IDENTITY_REPLACEMENTS = (
     (re.compile(r"\bI\s+am\s+Agnes\b", re.IGNORECASE), "I am Kilo"),
     (re.compile(r"\bI['’]m\s+Agnes\b", re.IGNORECASE), "I'm Kilo"),
@@ -239,6 +243,8 @@ def _strip_trailing_flourish(text: str) -> str:
     while previous != out:
         previous = out
         out = _TRAIL_SIR_RE.sub("", out)
+        if _SELF_NAME_TAIL_RE.search(out):
+            return out.rstrip()
         out = _TRAIL_NAME_RE.sub("", out)
     return out.rstrip()
 
@@ -535,6 +541,7 @@ class Agent:
             pending_content = ""
             inline_markup = False
             emitted_this_step = False
+            streamed_text = False
             calls: dict[int, dict[str, Any]] = {}
             usage: dict[str, Any] | None = None
             finish_reason = None
@@ -586,6 +593,9 @@ class Agent:
                             yield {"type": "token", "text": "Sir, "}
                         emitted_this_step = True
                         if visible:
+                            if not streamed_text:
+                                visible = _strip_leading_sir(visible)
+                            streamed_text = True
                             yield {"type": "token", "text": visible}
                     for call in delta.get("tool_calls") or []:
                         index = int(call.get("index", 0))
@@ -606,6 +616,7 @@ class Agent:
                         )
 
             if pending_content and not inline_markup:
+                pending_content = _strip_leading_sir(pending_content)
                 if not sir_started and pending_content.strip():
                     sir_started = True
                     pending_content = _strip_leading_sir(pending_content)
@@ -615,9 +626,12 @@ class Agent:
                 pending_content = _strip_trailing_flourish(pending_content)
                 if pending_content:
                     emitted_this_step = True
+                    streamed_text = True
                     yield {"type": "token", "text": pending_content}
 
-            content = enforce_directive_identity("".join(content_parts))
+            content = _strip_leading_sir(
+                enforce_directive_identity("".join(content_parts))
+            )
             tool_calls = [calls[index] for index in sorted(calls)]
             allowed_names = {
                 schema.get("function", {}).get("name", "") for schema in tool_schemas
