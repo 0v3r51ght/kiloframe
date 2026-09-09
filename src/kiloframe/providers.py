@@ -425,6 +425,12 @@ class ProviderRegistry:
             "max_tokens": max_tokens,
             "stream": True,
         }
+        if provider.name.lower() == "agnes":
+            # Agnes 2.5 emits only ``reasoning_content`` until its thinking budget is
+            # exhausted unless this OpenAI-compatible switch is explicit. KiloFrame
+            # deliberately keeps hidden reasoning off for responsive bot replies.
+            payload["enable_thinking"] = False
+            payload["chat_template_kwargs"] = {"enable_thinking": False}
         if tools:
             payload["tools"] = tools
             payload["tool_choice"] = "auto"
