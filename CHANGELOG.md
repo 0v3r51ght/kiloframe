@@ -13,6 +13,8 @@
 - Fixed streamed TUI reply borders to follow one stable pane width for Sir's input and
   Kilo's reply, including split and resized SSH terminals, so output cannot spill into the
   sidebar or shift between turns.
+- Reflow Sir and Kilo transcript boxes whenever the output pane changes width, keeping
+  both side rails connected with no stale-width gap after a terminal resize.
 - Current verification covers 205 automated tests plus production installer and Ollama
   checks.
 

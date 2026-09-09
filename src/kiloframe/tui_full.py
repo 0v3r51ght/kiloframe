@@ -298,7 +298,10 @@ class KiloApp:
         self._choice_index = 0
         self._follow_output = True
         self._preview_start: int | None = None
-        self._box_width: int | None = None
+        # Width used for the last completed transcript reflow. Do not cache this
+        # as the drawing width: prompt_toolkit changes a Window's allocation on every
+        # terminal resize and a cached value tears the right border from old boxes.
+        self._rendered_box_width: int | None = None
         self._cloud_state = "configured · awaiting request"
         self._catalog: dict[str, Any] = {}
         self._cloud_options: list[tuple[str, dict[str, Any]]] = []
@@ -329,21 +332,86 @@ class KiloApp:
         # ``shutil.get_terminal_size`` can describe the parent shell rather than
         # the current split layout (especially after a resize or through SSH),
         # which previously let boxed replies extend into the sidebar.
-        if self._box_width is not None:
-            return self._box_width
         info = getattr(self.output.window, "render_info", None)
         rendered_width = getattr(info, "window_width", 0) if info else 0
         if rendered_width:
-            self._box_width = max(20, rendered_width)
-            return self._box_width
+            return max(20, rendered_width)
         try:
             cols = shutil.get_terminal_size((80, 24)).columns
         except Exception:
             cols = 80
         if self.show_panel and cols >= 88:
             cols -= 31
-        self._box_width = max(20, cols - 2)
-        return self._box_width
+        return max(20, cols - 2)
+
+    @staticmethod
+    def _box_rows(label: str, body: list[str], width: int) -> list[str]:
+        """Render a complete transcript box for a specific output allocation."""
+        width = max(20, width)
+        inner = max(1, width - 3)
+        head = "╭─ " + label + " "
+        rows = [head + "─" * max(0, width - len(head) - 1) + "╮"]
+        for source in body:
+            # Old padded rows are presentation, not content. Rewrap them at the new
+            # width so both vertical sides move together instead of leaving a gap.
+            chunks = textwrap.wrap(
+                source, width=inner, replace_whitespace=False, drop_whitespace=False,
+                break_long_words=True, break_on_hyphens=False,
+            ) or [""]
+            rows.extend("│ " + chunk[:inner].ljust(inner) + "│" for chunk in chunks)
+        rows.append("╰" + "─" * max(0, width - 2) + "╯")
+        return rows
+
+    def _reflow_boxes(self, width: int) -> None:
+        """Redraw completed Sir/Kilo boxes after the output pane is resized."""
+        self._remove_preview()
+        buffer = self.output.buffer
+        lines = buffer.text.splitlines()
+        rebuilt: list[str] = []
+        index = 0
+        top = re.compile(r"^╭─ (.*?) ─*╮$")
+        while index < len(lines):
+            match = top.match(lines[index])
+            if not match:
+                rebuilt.append(lines[index])
+                index += 1
+                continue
+            label = match.group(1)
+            body: list[str] = []
+            cursor = index + 1
+            while cursor < len(lines) and not re.match(r"^╰─*╯$", lines[cursor]):
+                line = lines[cursor]
+                if line.startswith("│ ") and line.endswith("│"):
+                    body.append(line[2:-1].rstrip())
+                else:
+                    break
+                cursor += 1
+            if cursor < len(lines) and re.match(r"^╰─*╯$", lines[cursor]):
+                rebuilt.extend(self._box_rows(label, body, width))
+                index = cursor + 1
+            else:
+                # Keep an incomplete/malformed box intact rather than swallowing
+                # ordinary transcript text while the user resizes the terminal.
+                rebuilt.append(lines[index])
+                index += 1
+        suffix = "\n" if buffer.text.endswith("\n") else ""
+        text = "\n".join(rebuilt) + suffix
+        old_row = buffer.document.cursor_position_row
+        position = len(text) if self._follow_output else Document(text).translate_row_col_to_index(
+            min(old_row, max(0, len(rebuilt) - 1)), 0
+        )
+        buffer.set_document(Document(text, position), bypass_readonly=True)
+        if self._follow_output:
+            self.output.window.vertical_scroll = max(0, buffer.document.line_count - 1)
+
+    def _after_render(self, app) -> None:
+        """Schedule one clean redraw when prompt_toolkit assigns a new pane width."""
+        info = getattr(self.output.window, "render_info", None)
+        width = getattr(info, "window_width", 0) if info else 0
+        if width and width != self._rendered_box_width:
+            self._reflow_boxes(width)
+            self._rendered_box_width = width
+            app.invalidate()
 
     def _rule(self, label: str = "") -> str:
         w = self._cw()
@@ -2093,6 +2161,7 @@ class KiloApp:
             full_screen=True,
             mouse_support=True,
         )
+        self.app.after_render += self._after_render
         self._queue = asyncio.Queue()
         self._worker = asyncio.create_task(self._worker_loop())
         ticker = asyncio.create_task(self._tick())

@@ -95,6 +95,26 @@ class LiveUI(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(input_lines and reply_lines)
         self.assertEqual(len(input_lines[0]), len(reply_lines[0]))
 
+    def test_resize_reflows_every_box_without_split_side_rails(self):
+        app = KiloApp(Client())
+        app._enqueue("Sir's input that is long enough to wrap after the pane shrinks")
+        app._open_box()
+        app._stream_boxed("Kilo's answer is also long enough to wrap after the pane shrinks.")
+        app._flush_boxed()
+        app._append(app._rule() + "\n")
+
+        app._reflow_boxes(32)
+        narrow = app.output.buffer.document.lines
+        self.assertTrue(all(len(line) <= 32 for line in narrow))
+        self.assertTrue(all(not line.startswith("│ ") or line.endswith("│") for line in narrow))
+
+        app._reflow_boxes(54)
+        wide = app.output.buffer.document.lines
+        tops = [line for line in wide if line.startswith("╭─ ")]
+        bottoms = [line for line in wide if line.startswith("╰")]
+        self.assertEqual(len(tops), 2)
+        self.assertEqual({len(line) for line in tops + bottoms}, {54})
+
     async def test_cloud_state_is_independent_of_ollama_and_poll_uses_selected_provider(self):
         app = KiloApp(Client())
         app.status = {"healthy": False}
