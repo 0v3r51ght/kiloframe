@@ -10,6 +10,8 @@
   troubleshooting, and testing workflows.
 - Added the self-contained `sudo kiloframe uninstall` command so removal works from any
   directory, and completed the missing `kiloframe local load` CLI operation.
+- Fixed streamed TUI reply borders to follow the pane's live width, including split and
+  resized SSH terminals, so output cannot spill into the sidebar.
 - Current verification covers 205 automated tests plus production installer and Ollama
   checks.
 
