@@ -115,6 +115,25 @@ class LiveUI(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(tops), 2)
         self.assertEqual({len(line) for line in tops + bottoms}, {54})
 
+    async def test_rendered_box_leaves_textarea_edge_cell_free(self):
+        """A physical row at Window width soft-wraps into a blank rail-breaking row."""
+        with create_pipe_input() as pipe:
+            app = KiloApp(Client())
+            app.app = Application(layout=app.layout, input=pipe, output=DummyOutput(), full_screen=True)
+            runner = asyncio.create_task(app.app.run_async())
+            try:
+                await asyncio.sleep(.1)
+                allocated = app.output.window.render_info.window_width
+                app._open_box()
+                app._bline("one physical row")
+                app._append(app._rule() + "\n")
+                rows = [line for line in app.output.buffer.document.lines if line.startswith(("╭", "│", "╰"))]
+                self.assertTrue(rows)
+                self.assertEqual({len(line) for line in rows}, {allocated - 1})
+            finally:
+                app.app.exit()
+                await runner
+
     async def test_cloud_state_is_independent_of_ollama_and_poll_uses_selected_provider(self):
         app = KiloApp(Client())
         app.status = {"healthy": False}

@@ -335,14 +335,17 @@ class KiloApp:
         info = getattr(self.output.window, "render_info", None)
         rendered_width = getattr(info, "window_width", 0) if info else 0
         if rendered_width:
-            return max(20, rendered_width)
+            # TextArea reserves one cell at the edge of its Window. A physical row
+            # equal to ``window_width`` soft-wraps that invisible final cell, yielding
+            # the blank rows that split the Sir/Kilo side rails.
+            return max(20, rendered_width - 1)
         try:
             cols = shutil.get_terminal_size((80, 24)).columns
         except Exception:
             cols = 80
         if self.show_panel and cols >= 88:
             cols -= 31
-        return max(20, cols - 2)
+        return max(20, cols - 3)
 
     @staticmethod
     def _box_rows(label: str, body: list[str], width: int) -> list[str]:
@@ -409,7 +412,7 @@ class KiloApp:
         info = getattr(self.output.window, "render_info", None)
         width = getattr(info, "window_width", 0) if info else 0
         if width and width != self._rendered_box_width:
-            self._reflow_boxes(width)
+            self._reflow_boxes(max(20, width - 1))
             self._rendered_box_width = width
             app.invalidate()
 
