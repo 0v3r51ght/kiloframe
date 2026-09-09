@@ -683,17 +683,20 @@ class TelegramBridge:
                     lines.append("Use <code>/local_load</code> or <code>/local_unload</code> to control residency.")
                     await self.send(token, chat_id, "\n".join(lines), self.MENU)
                 else:
-                    model = argument or self.agent.runtime.active_model()
-                    if not model:
-                        raise RuntimeError("No local model is selected.")
                     if name == "local_ps":
                         running = await asyncio.to_thread(self.agent.runtime.client().running_models)
                         lines = ["▶ <b>Loaded Ollama models</b>"]
                         lines += ["• <code>" + html.escape(str(item.get("name") or item.get("model"))) + "</code>" for item in running] or ["No models are loaded."]
                     elif name == "local_load":
+                        model = argument or self.agent.runtime.active_model()
+                        if not model:
+                            raise RuntimeError("No local model is selected.")
                         await asyncio.to_thread(self.agent.runtime.client().load, model)
                         lines = ["▶ <b>Local model loaded</b>", "<code>" + html.escape(model) + "</code>"]
                     else:
+                        model = argument or self.agent.runtime.active_model()
+                        if not model:
+                            raise RuntimeError("No local model is selected.")
                         await asyncio.to_thread(self.agent.runtime.client().unload, model)
                         lines = ["⏏ <b>Local model unloaded</b>", "<code>" + html.escape(model) + "</code>"]
                     await self.send(token, chat_id, "\n".join(lines), self.MENU)
