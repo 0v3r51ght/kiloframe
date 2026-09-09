@@ -140,6 +140,23 @@ class CLITests(unittest.TestCase):
             self.assertEqual(command[:4], ["runuser", "-u", config.owner(), "--"])
             self.assertIn("kiloframe.daemon", command)
 
+    def test_manual_stop_accepts_pid_file_cleanup_as_a_clean_stop(self):
+        from kiloframe import cli
+
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            runtime = root / "run"
+            runtime.mkdir()
+            pid_file = runtime / "kiloframe.pid"
+            pid_file.write_text("42\n", encoding="ascii")
+            settings = SimpleNamespace(runtime_dir=runtime, socket_path=runtime / "kiloframe.sock")
+            with patch("kiloframe.cli.os.geteuid", return_value=0), \
+                 patch("kiloframe.cli._manual_daemon_pid", side_effect=[42, None]), \
+                 patch("kiloframe.cli.os.kill") as kill, \
+                 patch("kiloframe.cli.time.sleep"):
+                self.assertEqual(cli._manual_service_action("stop", settings), 0)
+            kill.assert_called_once_with(42, cli.signal.SIGTERM)
+
 
 if __name__ == "__main__":
     unittest.main()

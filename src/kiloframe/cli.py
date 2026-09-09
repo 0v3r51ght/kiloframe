@@ -147,9 +147,10 @@ def _manual_service_action(action: str, settings: Settings) -> int:
             return 0
         os.kill(pid, signal.SIGTERM)
         for _ in range(100):
-            try:
-                os.kill(pid, 0)
-            except ProcessLookupError:
+            # A detached process can remain as a zombie briefly after its last
+            # child exits. Treat that as stopped; kill(2, 0) alone reports it as
+            # present and makes every restart wait for the forced-stop timeout.
+            if _manual_daemon_pid(settings) is None:
                 print("KiloFrame daemon stopped.")
                 return 0
             time.sleep(0.1)
