@@ -281,6 +281,30 @@ class TelegramCommandTests(IsolatedAsyncioTestCase):
             self.assertTrue(captured["fresh"])
             self.assertTrue(callable(captured["permission_callback"]))
 
+    async def test_local_process_command_works_without_selected_model(self):
+        class Client:
+            def running_models(self):
+                return [{"name": "local-model:4b"}]
+
+        class Runtime:
+            def client(self):
+                return Client()
+
+            def active_model(self):
+                return None
+
+        agent = SimpleNamespace(runtime=Runtime())
+        with tempfile.TemporaryDirectory() as raw:
+            bridge = TelegramBridge(_config(raw, {"token": "secret", "allowed_chat_ids": [42]}), agent)
+            sent = []
+
+            async def capture(token, chat_id, text, keyboard=None):
+                sent.append(text)
+
+            bridge.send = capture
+            self.assertTrue(await bridge._command("secret", 42, "/local_ps"))
+            self.assertIn("local-model:4b", sent[0])
+
 
 class TelegramConcurrencyTests(IsolatedAsyncioTestCase):
     async def test_cancel_stops_only_this_chats_active_work(self):
