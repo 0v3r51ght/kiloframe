@@ -55,6 +55,36 @@ kiloframe telegram disallow CHAT_ID
 kiloframe telegram disable
 ```
 
+### Telegram bot commands
+
+Telegram uses the same daemon, model route, tools, and runtime directive as the TUI. The
+natural-language reply path is enforced at the client boundary for both local Ollama and
+cloud providers, so every completed conversation is addressed as `Sir, ... , Sir.` even
+when a model omits the required address. Operational command/status cards are controls and
+may use concise labels instead of conversational prose.
+
+```text
+/start                         activate this chat and show the guide
+/help                          show the current command guide
+/status                        daemon, route, model, and live Ollama status
+/local                         select the local Ollama route
+/local_models                  list models downloaded on the active Ollama server
+/local_ps                      list models currently loaded by Ollama
+/local_load [MODEL]            preload a downloaded model (selected by default)
+/local_unload [MODEL]          unload a loaded model
+/model MODEL_OR_NUMBER         select a model on the active route
+/cloud                         select the configured cloud route
+/switch                        toggle between local Ollama and configured cloud
+/models                        list models on the active route
+/tools                         show tools available to the bot
+/cancel, /new                  cancel work or start a fresh conversation
+```
+
+`/local_models`, `/local_ps`, `/local_load`, and `/local_unload` always use the active
+Ollama endpoint. They never silently fall back to a cloud provider. Set or inspect the
+token and allow-list with the Telegram CLI commands above; a chat must send `/start` before
+normal messages are accepted.
+
 ## TUI slash commands
 
 Slash-command completion appears while typing. Interactive commands show menus and accept

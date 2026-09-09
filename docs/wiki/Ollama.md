@@ -58,14 +58,15 @@ whether a model has a native thinking channel.
 
 ## Context and memory pressure
 
-The default request context is 2048 tokens to avoid excessive KV-cache allocation on
-constrained endpoints. Operators may set `KILOFRAME_OLLAMA_CONTEXT_TOKENS` in the daemon
-environment and restart, but should verify capacity first.
+The default request context is 8192 tokens. Operators may set
+`KILOFRAME_OLLAMA_CONTEXT_TOKENS` in the daemon environment and restart, but should verify
+capacity first. KiloFrame passes the configured context and validated Ollama options per
+request; it does not assume a fixed GPU layer count for a particular host.
 
-If automatic GPU placement returns a CUDA out-of-memory error, KiloFrame reports that in
-Kilo's live box and retries the same endpoint/model once with Ollama's `num_gpu: 0` CPU
-setting. It never loops, changes model, changes endpoint, or calls a cloud provider. CPU
-inference may be much slower; a second failure remains a visible failure.
+If automatic placement returns an out-of-memory error, KiloFrame reports that in Kilo's live
+box and retries the same endpoint/model once with a smaller batch, then once with CPU-only
+placement when needed. It never loops, changes model, changes endpoint, or calls a cloud
+provider. CPU inference may be much slower; a second failure remains a visible failure.
 
 ## Remote-server checklist
 

@@ -11,6 +11,15 @@ fallback. Provider configuration is absent by default.
 Remember that “remote Ollama” is still remote network inference: prompts travel to the
 configured host. Use a trusted network or appropriate TLS termination.
 
+## Telegram conversation boundary
+
+Telegram uses the same explicit route boundary as the TUI: `/local` sends inference to the
+configured Ollama endpoint and `/cloud` or `/switch` uses only an explicitly configured
+cloud provider. There is no automatic cloud fallback. The Core Directive is included in
+both routes and enforced again on the final Telegram message, so model output is rendered
+as `Sir, ... , Sir.` even when the upstream model omits that address. Status, help, progress,
+and approval messages are control-plane UI and are not conversational model answers.
+
 ## Command and path policy
 
 - Commands execute as program plus argument vector, not through a shell.

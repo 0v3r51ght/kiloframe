@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from .activity import format_arguments, format_summary
-from .agent import Agent
+from .agent import Agent, enforce_directive_address
 from .profiles import PROFILES
 from .security import Risk
 from .telegram_render import telegram_html, telegram_html_chunks
@@ -552,7 +552,11 @@ class TelegramBridge:
             await self.send(
                 token,
                 chat_id,
-                f"⚠️ <b>Kilo hit an error</b>\n<code>{html.escape(str(exc))}</code>",
+                telegram_html(
+                    enforce_directive_address(
+                        f"Kilo hit an error: {str(exc)}"
+                    )
+                ),
                 self.MENU,
             )
             return
@@ -564,7 +568,14 @@ class TelegramBridge:
         await self._edit_progress(
             token, chat_id, work_message, self._live_work_body(state, finished=True)
         )
-        answer = telegram_html("".join(output).strip())
+        # Guard the final combined stream because a provider may ignore the directive.
+        # Render only the body so a required address does not swallow Markdown headings.
+        normalized = enforce_directive_address("".join(output))
+        prefix, suffix = "Sir, ", ", Sir."
+        if normalized.startswith(prefix) and normalized.endswith(suffix):
+            answer = prefix + telegram_html(normalized[len(prefix):-len(suffix)]) + suffix
+        else:
+            answer = telegram_html(normalized)
         took = int(time.monotonic() - state["started"])
         minutes, seconds = divmod(took, 60)
         clock = f"{minutes}m {seconds:02d}s" if minutes else f"{seconds}s"

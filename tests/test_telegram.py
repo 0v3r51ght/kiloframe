@@ -69,6 +69,34 @@ class TelegramConfigTests(unittest.TestCase):
 
 
 class TelegramDeliveryTests(IsolatedAsyncioTestCase):
+    async def test_final_telegram_answer_enforces_directive_address(self):
+        class PlainAgent:
+            def run(self, *args, **kwargs):
+                async def generate():
+                    yield {"type": "model", "location": "cloud" if kwargs.get("provider") else "local", "label": "test"}
+                    yield {"type": "token", "text": "A provider ignored the address rule."}
+                    yield {"type": "done"}
+                return generate()
+
+        with tempfile.TemporaryDirectory() as raw:
+            bridge = TelegramBridge(_config(raw, {"token": "secret", "allowed_chat_ids": [42]}), PlainAgent())
+            sent = []
+            async def capture(token, chat_id, text, keyboard=None):
+                sent.append(text)
+            async def progress(*args): return 1
+            async def edit(*args): return None
+            async def delete(*args): return None
+            bridge.send = capture
+            bridge._send_progress = progress
+            bridge._edit_progress = edit
+            bridge._delete = delete
+            await bridge._reply("secret", 42, "local")
+            await bridge._reply("secret", 42, "cloud")
+            self.assertEqual(len(sent), 2)
+            for answer in sent:
+                self.assertIn("Sir, A provider ignored the address rule., Sir.", answer)
+                self.assertEqual(answer.count("Sir,"), 1)
+
     async def test_reply_resets_tool_markup_and_renders_clean_research(self):
         class ResearchAgent:
             def run(self, *args, **kwargs):
@@ -139,6 +167,8 @@ class TelegramDeliveryTests(IsolatedAsyncioTestCase):
             await bridge._reply("secret", 42, "hello")
             self.assertTrue(sent)
             self.assertIn("model unavailable", sent[0])
+            self.assertTrue(sent[0].startswith("Sir, "))
+            self.assertTrue(sent[0].endswith(", Sir."))
 
 
 class TelegramCommandTests(IsolatedAsyncioTestCase):

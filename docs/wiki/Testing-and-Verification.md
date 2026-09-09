@@ -13,8 +13,9 @@ PYTHONPATH=src python3 -m unittest discover -s tests -v
 git diff --check
 ```
 
-Tests cover RPC/model paths, TUI command handling and rendering state, Ollama semantics,
-integration configuration, permissions, status, installation scripts, and memory. Passing
+Tests cover RPC/model paths, TUI and Telegram command handling/rendering state, Telegram
+directive enforcement on local and cloud routes, Ollama semantics, integration
+configuration, permissions, status, installation scripts, and memory. Passing
 them does not prove terminal usability or external connectivity.
 
 ## Installer acceptance
@@ -45,6 +46,15 @@ kiloframe logs -n 200
 Confirm Context7 and Serena start and report discovered tools. Confirm Superpowers skills
 are imported. Confirm Playwright agent skills were installed. Do not mark Exa, GitHub MCP,
 Firecrawl, Telegram, or cloud providers verified without the needed external credentials.
+
+With Telegram credentials available, send `/start`, `/local_models`, `/local_ps`, and a
+short prompt on the local route, then `/cloud` or `/switch` and another short prompt. Check
+that both completed answers begin `Sir, ` and end `, Sir.` and that local model controls
+reflect the active Ollama server. The focused automated check is:
+
+```bash
+PYTHONPATH=src python3 -m unittest tests.test_telegram -v
+```
 
 ## Ollama acceptance
 

@@ -18,6 +18,8 @@ test counts, private endpoints, model inventories, or completion claims.
 - Exa, GitHub MCP, Firecrawl, Telegram, and cloud routes remain optional when credentials
   or external services are required.
 - Conversation context compacts automatically while persistent sessions remain in SQLite.
+- Telegram natural-language replies use the same Core Directive on local and cloud routes;
+  the bridge enforces the final `Sir, ... , Sir.` form and exposes live local model controls.
 
 ## Before changing or releasing
 

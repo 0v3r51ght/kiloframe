@@ -101,3 +101,17 @@ bridge starts even when no chat is yet allowed. A Telegram user activates their 
 sending `/start`; KiloFrame records that chat ID and immediately sends the normal introduction.
 Messages from a chat that has not sent `/start` are ignored. Use
 `sudo kiloframe telegram status` to review the resulting allow-list.
+
+### Telegram route controls and directive
+
+The bot exposes the same local/cloud route controls as the TUI. Use `/local` to select
+Ollama, `/cloud` to select an explicitly configured provider, or `/switch` to toggle between
+them. `/local_models`, `/local_ps`, `/local_load [MODEL]`, and `/local_unload [MODEL]` query
+and control model residency on the active Ollama endpoint; `/model` selects the model for
+the active route. These controls report live server state and do not imply that a model is
+loaded until Ollama reports it.
+
+Every natural-language Telegram reply passes through Kilo's Core Directive for both local
+and cloud inference. The bridge also normalizes the final combined stream, which covers
+providers or models that ignore the system prompt and guarantees the visible form
+`Sir, ... , Sir.`. Progress, status, help, and approval cards are operational UI messages.

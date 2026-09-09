@@ -26,6 +26,8 @@ and conversation compaction appear live inside Kilo's response box.
   viewed position when new output arrives.
 - Kilo's runtime directive applies consistently across model switches, tools, recovery,
   multi-step work, and specialist-agent execution.
+- Telegram uses the same local/cloud controls and enforces the directive on every completed
+  natural-language reply, including replies from models that omit the required address.
 
 ## Quick start
 

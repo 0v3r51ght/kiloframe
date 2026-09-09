@@ -228,6 +228,14 @@ def _strip_trailing_flourish(text: str) -> str:
     return out.rstrip()
 
 
+def enforce_directive_address(text: str | None) -> str:
+    """Enforce the Core Directive's address at every client boundary."""
+    body = _strip_trailing_flourish(_strip_leading_sir(str(text or ""))).strip()
+    if not body:
+        return "Sir, the model returned no answer; the task is not complete, Sir."
+    return f"Sir, {body}, Sir."
+
+
 class Agent:
     def __init__(
         self,

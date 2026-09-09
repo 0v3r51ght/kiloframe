@@ -18,6 +18,11 @@ screen, live task/tool activity, sidebar, selectable slash-command workflows, an
 clickable output scrollbar. Kilo's runtime directive is enforced for local models, cloud
 models, tools, continuation turns, and specialist-agent handoffs.
 
+The optional Telegram bot uses the same directive and route selection. `/local`, `/cloud`,
+`/switch`, `/model`, `/local_models`, `/local_ps`, `/local_load`, and `/local_unload` let a
+permitted chat manage local Ollama or an explicitly configured cloud route; completed
+natural-language replies are normalized to `Sir, ... , Sir.` at delivery time.
+
 ## What KiloFrame contains
 
 | Area | Included capability |
