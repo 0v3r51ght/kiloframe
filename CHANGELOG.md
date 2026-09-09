@@ -15,6 +15,8 @@
   sidebar or shift between turns.
 - Reflow Sir and Kilo transcript boxes whenever the output pane changes width, keeping
   both side rails connected with no stale-width gap after a terminal resize.
+- Removed the extra blank row between adjacent Sir and Kilo boxes, and reserve
+  TextArea's edge cell so a terminal never soft-wraps a border into a phantom blank row.
 - Current verification covers 205 automated tests plus production installer and Ollama
   checks.
 

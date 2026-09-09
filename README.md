@@ -25,7 +25,8 @@ the configured server: downloaded, selected, and loaded are separate model state
 ## Capabilities
 
 - Full-screen TUI with a bordered Kilo output pane, separate input area, live streaming,
-  activity details, scrollbar, command completion, and a live sidebar.
+  activity details, scrollbar, command completion, and a live sidebar. Sir/Kilo boxes
+  reflow cleanly when the terminal or sidebar width changes.
 - CLI for prompts, service control, status, health checks, resources, logs, and benchmarks.
 - Local or remote Ollama endpoint management, model discovery, pull, selection, loading,
   unloading, context configuration, and CUDA out-of-memory recovery.
