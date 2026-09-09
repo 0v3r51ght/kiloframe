@@ -8,6 +8,7 @@ from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
 
+from .activity import running_processes
 from .agent import Agent
 from .errors import KiloFrameError
 from .memory import MemoryStore
@@ -71,7 +72,11 @@ class RPCServer:
             command = request.get("command")
             if command == "status":
                 status = self.runtime.status()
-                status["healthy"] = await self.runtime.healthy()
+                try:
+                    status["healthy"] = await asyncio.wait_for(self.runtime.healthy(), timeout=3)
+                except asyncio.TimeoutError:
+                    status["healthy"] = False
+                status["processes"] = await asyncio.to_thread(running_processes)
                 status["memory"] = self.memory.stats()
                 mcp = getattr(self.agent.tools, "mcp", None)
                 status["mcp"] = mcp.info() if mcp else []
@@ -233,6 +238,12 @@ class RPCServer:
                     await self._send(
                         writer, {"type": "result", "data": {"ok": False, "error": str(exc)}}
                     )
+            elif command == "ollama_set_options":
+                try:
+                    options = self.runtime.config.set_options(str(request.get("name", "")), request.get("options", {}))
+                    await self._send(writer, {"type": "result", "data": {"ok": True, "options": options}})
+                except (ValueError, KiloFrameError) as exc:
+                    await self._send(writer, {"type": "result", "data": {"ok": False, "error": str(exc)}})
             elif command == "ollama_add_server":
                 try:
                     server = self.runtime.config.add_server(
@@ -416,6 +427,32 @@ class RPCServer:
                         writer,
                         {"type": "result", "data": {"ok": False, "error": str(exc)}},
                     )
+            elif command == "telegram_config":
+                try:
+                    path = self.agent.settings.telegram_path
+                    config = json.loads(path.read_text()) if path.exists() else {}
+                    action = request.get("action", "status")
+                    allowed = set(int(x) for x in config.get("allowed_chat_ids", []))
+                    if action == "allow":
+                        allowed.add(int(request["chat_id"]))
+                    elif action == "disallow":
+                        allowed.discard(int(request["chat_id"]))
+                    elif action == "disable":
+                        config["token"] = ""
+                    elif action != "status":
+                        raise ValueError("unknown Telegram action")
+                    if action != "status":
+                        config["allowed_chat_ids"] = sorted(allowed)
+                        tmp = path.with_suffix(".tmp")
+                        tmp.write_text(json.dumps(config, indent=2) + "\n")
+                        os.chmod(tmp, 0o600)
+                        os.replace(tmp, path)
+                    token = str(config.get("token") or "")
+                    await self._send(writer, {"type": "result", "data": {
+                        "ok": True, "configured": bool(token and token != "PASTE_BOT_TOKEN_HERE"),
+                        "allowed_chat_ids": sorted(allowed)}})
+                except Exception as exc:
+                    await self._send(writer, {"type": "result", "data": {"ok": False, "error": str(exc)}})
             elif command == "set_telegram_token":
                 token = str(request.get("token", "")).strip()
                 if not token or ":" not in token or len(token) > 256:

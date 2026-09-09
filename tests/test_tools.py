@@ -68,7 +68,7 @@ class ToolTests(unittest.IsolatedAsyncioTestCase):
         names = {item["function"]["name"] for item in self.tools.schemas(request="Inspect this machine CPU")}
         self.assertEqual(names, {"system_info"})
         names = {item["function"]["name"] for item in self.tools.schemas(request="Search the web for Arch Linux")}
-        self.assertEqual(names, {"web_search"})
+        self.assertEqual(names, {"web_search", "web_fetch"})
         # Remote task selection obeys the same approval-gated execution boundary.
         remote = self.tools.schemas(remote=True)
         self.assertEqual(remote, baseline)

@@ -52,6 +52,7 @@ class OllamaServer:
     url: str
     enabled: bool = True
     model: str = ""  # model selected for use on this server
+    options: dict[str, int] = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, name: str, raw: dict[str, Any]) -> "OllamaServer":
@@ -63,10 +64,30 @@ class OllamaServer:
             url=url,
             enabled=bool(raw.get("enabled", True)),
             model=str(raw.get("model", "")).strip(),
+            options=cls.validate_options(raw.get("options") or {}),
         )
 
+    @staticmethod
+    def validate_options(options: dict[str, Any]) -> dict[str, int]:
+        limits = {"num_ctx": (256, 1048576), "num_batch": (1, 2048),
+                  "num_gpu": (-1, 65536), "num_thread": (1, 1024)}
+        result = {}
+        if not isinstance(options, dict):
+            raise ValueError("Ollama options must be an object")
+        for name, value in options.items():
+            if name not in limits or isinstance(value, bool):
+                raise ValueError(f"unsupported Ollama option: {name}")
+            try:
+                number = int(value)
+            except (TypeError, ValueError):
+                raise ValueError(f"{name} must be an integer") from None
+            if str(number) != str(value) or not limits[name][0] <= number <= limits[name][1]:
+                raise ValueError(f"{name} must be an integer between {limits[name][0]} and {limits[name][1]}")
+            result[name] = number
+        return result
+
     def to_dict(self) -> dict[str, Any]:
-        return {"url": self.url, "enabled": self.enabled, "model": self.model}
+        return {"url": self.url, "enabled": self.enabled, "model": self.model, "options": self.options}
 
 
 class OllamaConfig:
@@ -146,7 +167,8 @@ class OllamaConfig:
         raw = self._raw()
         servers = raw.setdefault("servers", {})
         server = OllamaServer.from_dict(name, {
-            "url": url, "enabled": True, "model": servers.get(name, {}).get("model", "")
+            "url": url, "enabled": True, "model": servers.get(name, {}).get("model", ""),
+            "options": servers.get(name, {}).get("options", {})
         })
         servers[name] = server.to_dict()
         if not raw.get("default"):
@@ -182,13 +204,22 @@ class OllamaConfig:
         entry["model"] = model.strip()
         self._write(raw)
 
+    def set_options(self, name: str, options: dict[str, Any]) -> dict[str, int]:
+        if name not in self.servers():
+            raise OllamaError(f"unknown server: {name}")
+        validated = OllamaServer.validate_options(options)
+        raw = self._raw()
+        raw["servers"][name]["options"] = validated
+        self._write(raw)
+        return validated
+
     def info(self) -> dict[str, Any]:
         active = self.active()
         return {
             "default": active.name if active else None,
             "model": active.model if active else "",
             "servers": [
-                {"name": s.name, "url": s.url, "model": s.model}
+                {"name": s.name, "url": s.url, "model": s.model, "options": s.options}
                 for s in self.servers().values()
             ],
         }
@@ -327,7 +358,8 @@ class OllamaClient:
         top_p: float = 0.9,
         num_ctx: int | None = None,
         think: str | bool | None = None,
-        keep_alive: str = "5m",
+        keep_alive: str = "15m",
+        runtime_options: dict[str, int] | None = None,
     ) -> AsyncIterator[dict[str, Any]]:
         """Stream a native Ollama chat completion, translated to the framework's
         OpenAI-compatible event shape (``delta`` with ``content``/``tool_calls``, and a
@@ -365,7 +397,9 @@ class OllamaClient:
             options["num_ctx"] = num_ctx
         if max_tokens is not None:
             options["num_predict"] = max_tokens
+        options.update(runtime_options or {})
         payload["options"] = options
+        payload["truncate"] = False
         # Reasoning models may default to a long hidden trace. Native thinking is
         # opt-in through /thinking, so ordinary requests return visible output promptly.
         payload["think"] = think if think else False
@@ -391,26 +425,27 @@ class OllamaClient:
             finally:
                 exc.close()
             failure = str(detail or exc.reason)
-            # Ollama exposes num_gpu as an official request option. When automatic
-            # placement returns CUDA OOM, try partial GPU placement before all-CPU.
-            if exc.code == 500 and "out of memory" in failure.lower() and "cuda" in failure.lower():
-                options["num_gpu"] = 20
-                yield {"status": "GPU memory exhausted; retrying with 20 GPU layers"}
+            if exc.code == 500 and "out of memory" in failure.lower():
+                # Reduce temporary prefill memory before changing device placement.
+                # Never invent a layer count for an unknown remote GPU.
+                if int(options.get("num_batch", 512)) > 32:
+                    options["num_batch"] = 32
+                    yield {"status": "Ollama memory exhausted; retrying with a smaller prefill batch"}
+                elif options.get("num_gpu") != 0:
+                    options["num_gpu"] = 0
+                    yield {"status": "Ollama memory exhausted; retrying the selected model on CPU"}
+                else:
+                    raise OllamaError(f"inference request refused ({exc.code}): {failure}") from exc
                 try:
                     response = await asyncio.to_thread(open_request)
-                except urllib.error.HTTPError as retry_exc:
-                    retry_exc.close()
-                    options["num_gpu"] = 0
-                    yield {"status": "GPU memory exhausted; retrying the selected model on CPU"}
+                except urllib.error.HTTPError as retry:
                     try:
-                        response = await asyncio.to_thread(open_request)
-                    except Exception as final_exc:
-                        raise OllamaError(f"inference retries failed: {final_exc}") from final_exc
-                except urllib.error.URLError as retry_exc:
-                    retry_exc.close()
-                    options["num_gpu"] = 0
-                    yield {"status": "GPU memory exhausted; retrying the selected model on CPU"}
-                    response = await asyncio.to_thread(open_request)
+                        detail = retry.read().decode("utf-8", "replace")
+                    finally:
+                        retry.close()
+                    raise OllamaError(f"inference recovery failed ({retry.code}): {detail}") from retry
+                except urllib.error.URLError as retry:
+                    raise OllamaError(f"inference recovery failed: {retry.reason}") from retry
             else:
                 raise OllamaError(f"inference request refused ({exc.code}): {failure}") from exc
         except urllib.error.URLError as exc:

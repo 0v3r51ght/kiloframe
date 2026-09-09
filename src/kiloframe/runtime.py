@@ -117,12 +117,10 @@ class OllamaRuntime:
         prompt_chars = len(json.dumps(payload.get("messages") or [], ensure_ascii=False))
         prompt_chars += len(json.dumps(payload.get("tools") or [], ensure_ascii=False))
         required = (prompt_chars + 1) // 2 + int(payload.get("max_tokens") or 1536) + 512
-        # Keep simple conversations inside the configured conservative budget. Raising
-        # context for the directive alone can exhaust small Ollama GPUs before token 1.
-        if payload.get("tools"):
-            context_tokens = max(self.settings.ollama_context_tokens, ((required + 1023) // 1024) * 1024)
-        else:
-            context_tokens = self.settings.ollama_context_tokens
+        # Include the whole directive and answer budget even for a greeting.
+        # Ollama otherwise truncates the system/user prompt silently.
+        context_tokens = max(self.settings.ollama_context_tokens, ((required + 1023) // 1024) * 1024)
+        server_options = dict(self.active_server().options)
         async for event in self.client().chat_stream(
             model=model,
             messages=payload.get("messages") or [],
@@ -132,6 +130,7 @@ class OllamaRuntime:
             top_p=float(payload.get("top_p", 0.9)),
             num_ctx=context_tokens,
             think=think,
+            runtime_options=server_options,
         ):
             yield event
 
@@ -155,6 +154,7 @@ class OllamaRuntime:
             "model": self.active_model(),
             "server": server.url if server else None,
             "server_name": server.name if server else None,
+            "options": dict(server.options) if server else {},
             "warming": self.warming,
             "profile": None,
         }

@@ -94,3 +94,29 @@ def format_result_lines(summary: Any, limit: int = 2400, max_lines: int = 14) ->
         bounded.append(line[:remaining])
         total += len(bounded[-1])
     return bounded
+
+
+def running_processes() -> list[dict[str, Any]]:
+    """Live daemon process tree, with names only so argv cannot leak credentials."""
+    import os
+    from pathlib import Path
+
+    processes = {}
+    for path in Path("/proc").glob("[0-9]*/stat"):
+        try:
+            stat = path.read_text()
+            end = stat.rindex(")")
+            fields = stat[end + 2:].split()
+            if fields[0] == "Z":
+                continue
+            processes[int(path.parent.name)] = (int(fields[1]), stat[stat.index("(") + 1:end])
+        except (OSError, ValueError, IndexError):
+            continue
+    descendants = {os.getpid()}
+    while True:
+        found = {pid for pid, (parent, _) in processes.items() if parent in descendants}
+        if found <= descendants:
+            break
+        descendants.update(found)
+    return [{"pid": pid, "name": "KiloFrame daemon" if pid == os.getpid() else processes[pid][1]}
+            for pid in sorted(descendants) if pid in processes]

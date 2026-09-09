@@ -215,6 +215,7 @@ ln -sf "$SERENA_BIN" /usr/local/bin/serena
 if has_systemd; then
     systemctl daemon-reload
     systemctl enable kiloframe.service
+    systemctl restart kiloframe.service
 else
     # The daemon's socket path must be writable for an init-system-independent run.
     install -d -m 0750 -o "$KILO_USER" -g "$KILO_GROUP" /run/kiloframe
@@ -228,4 +229,19 @@ else
         echo "  sudo -u $KILO_USER env PYTHONPATH=/opt/kiloframe/app/src $PYTHON_BIN -m kiloframe.daemon"
     fi
 fi
+# Installation is complete only when the daemon accepts connections.
+"$PYTHON_BIN" - <<'PYREADY'
+import socket
+import time
+for attempt in range(60):
+    try:
+        with socket.socket(socket.AF_UNIX) as client:
+            client.settimeout(1)
+            client.connect("/run/kiloframe/kiloframe.sock")
+        break
+    except OSError:
+        time.sleep(1)
+else:
+    raise SystemExit("KiloFrame daemon did not start; inspect /var/log/kiloframe/daemon.log and kiloframe logs")
+PYREADY
 echo "KiloFrame installed. Run: kiloframe (then /local to add an Ollama server or /cloud for hosted models)"

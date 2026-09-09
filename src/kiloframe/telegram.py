@@ -83,10 +83,15 @@ class TelegramBridge:
         ("cancel", "stop this chat's active and queued work"),
         ("new", "start a fresh conversation"),
         ("local", "use the configured Ollama route"),
+        ("local_models", "list models downloaded on the Ollama server"),
+        ("local_ps", "show models currently loaded in Ollama"),
+        ("local_load", "load the selected or named Ollama model"),
+        ("local_unload", "unload the selected or named Ollama model"),
         ("cloud", "use the default or named cloud model"),
         ("switch", "switch between local and cloud"),
-        ("models", "list cloud models"),
-        ("model", "show or select a cloud model"),
+        ("models", "list models on the active local or cloud route"),
+        ("model", "show or select a model on the active route"),
+        ("tools", "available tools and how to request work"),
         ("agent", "show or select a specialist agent"),
         ("id", "show this chat's id"),
         ("help", "list commands"),
@@ -104,11 +109,15 @@ class TelegramBridge:
                 {"text": "☁️ Cloud", "callback_data": "cloud"},
             ],
             [
-                {"text": "🧠 Models", "callback_data": "models"},
+                {"text": "📦 Ollama models", "callback_data": "local_models"},
                 {"text": "🧩 Agents", "callback_data": "agent"},
             ],
             [
-                {"text": "🆔 My ID", "callback_data": "id"},
+                {"text": "▶ Load local", "callback_data": "local_load"},
+                {"text": "⏏ Unload local", "callback_data": "local_unload"},
+            ],
+            [
+                {"text": "🛠 Tools", "callback_data": "tools"},
                 {"text": "❓ Help", "callback_data": "help"},
             ],
         ]
@@ -173,6 +182,14 @@ class TelegramBridge:
             }
             # Attach the menu only to the final chunk so it appears once, at the end.
             if keyboard and index == len(chunks) - 1:
+                if keyboard is self.MENU:
+                    keyboard = json.loads(json.dumps(self.MENU))
+                    cloud = chat_id in self._chat_providers
+                    keyboard["inline_keyboard"][1][0]["text"] = "🏠 Local" + (" ✓" if not cloud else "")
+                    keyboard["inline_keyboard"][1][1]["text"] = "☁️ Cloud" + (" ✓" if cloud else "")
+                    keyboard["inline_keyboard"][2][0]["text"] = "🧠 Cloud models" if cloud else "📦 Ollama models"
+                    keyboard["inline_keyboard"][3][0]["text"] = "☁️ Select cloud" if cloud else "▶ Load local"
+                    keyboard["inline_keyboard"][3][1]["text"] = "⏏ Unload local"
                 data["reply_markup"] = keyboard
             await asyncio.to_thread(self._call, token, "sendMessage", data)
 
@@ -581,8 +598,10 @@ class TelegramBridge:
 
         if name == "start":
             lines = [
-                "🤖 <b>Kilo</b> — ready, Sir.",
-                "Private local inference is the default. Cloud is used only after /cloud.",
+                "🤖 <b>KiloFrame</b> · Developed by Citadel Research",
+                "Talk naturally to Kilo. Ask it to inspect files, run tasks, or research the web.",
+                "Use Local or Cloud to choose where inference runs; Models follows that route.",
+                "Check /status for the selected model and live availability.",
                 "🛠 <i>Machine tools enabled; changes ask for approval.</i>  ·  /help",
             ]
             await self.send(token, chat_id, "\n".join(lines), self.MENU)
@@ -597,7 +616,7 @@ class TelegramBridge:
                 "",
                 "🛠 <b>Machine tools are enabled</b>: safe inspection runs directly; commands,",
                 "writes, services, packages, and destructive actions show Approve/Deny buttons.",
-                "/cloud changes the model route; /local keeps inference on Kilobase.",
+                "/local uses your configured Ollama server, which may be on another machine. /cloud explicitly selects a cloud provider.",
             ]
             await self.send(token, chat_id, "\n".join(lines), self.MENU)
             return True
@@ -633,9 +652,42 @@ class TelegramBridge:
             await self.send(
                 token,
                 chat_id,
-                "🏠 <b>Local model selected.</b>\n<i>Requests route through Ollama; no prompt leaves the machine.</i>",
+                "🏠 <b>Ollama route selected.</b>\n<i>Inference uses your configured Ollama server.</i>\nUse /local_models, /model MODEL_ID, /local_load, /local_ps, or /local_unload.",
                 self.MENU,
             )
+            return True
+        if name in {"local_models", "local_ps", "local_load", "local_unload"}:
+            try:
+                if chat_id in self._chat_providers:
+                    raise RuntimeError("Switch to /local before using Ollama controls.")
+                if name == "local_models":
+                    models = await asyncio.to_thread(self.agent.runtime.client().list_models)
+                    selected = self.agent.runtime.active_model()
+                    lines = ["📦 <b>Ollama models</b>"]
+                    for model in models[:40]:
+                        value = str(model.get("name") or model.get("model") or "")
+                        mark = " ✓ selected" if value == selected else ""
+                        lines.append("• <code>" + html.escape(value) + "</code>" + mark)
+                    lines.append("Use <code>/model MODEL_ID</code> to select a downloaded model.")
+                    lines.append("Use <code>/local_load</code> or <code>/local_unload</code> to control residency.")
+                    await self.send(token, chat_id, "\n".join(lines), self.MENU)
+                else:
+                    model = argument or self.agent.runtime.active_model()
+                    if not model:
+                        raise RuntimeError("No local model is selected.")
+                    if name == "local_ps":
+                        running = await asyncio.to_thread(self.agent.runtime.client().running_models)
+                        lines = ["▶ <b>Loaded Ollama models</b>"]
+                        lines += ["• <code>" + html.escape(str(item.get("name") or item.get("model"))) + "</code>" for item in running] or ["No models are loaded."]
+                    elif name == "local_load":
+                        await asyncio.to_thread(self.agent.runtime.client().load, model)
+                        lines = ["▶ <b>Local model loaded</b>", "<code>" + html.escape(model) + "</code>"]
+                    else:
+                        await asyncio.to_thread(self.agent.runtime.client().unload, model)
+                        lines = ["⏏ <b>Local model unloaded</b>", "<code>" + html.escape(model) + "</code>"]
+                    await self.send(token, chat_id, "\n".join(lines), self.MENU)
+            except Exception as exc:
+                await self.send(token, chat_id, "⚠️ " + html.escape(str(exc)), self.MENU)
             return True
         if name in {"cloud", "switch"}:
             if name == "switch" and not argument:
@@ -662,76 +714,52 @@ class TelegramBridge:
                 self.MENU,
             )
             return True
-        if name == "models":
+        if name == "tools":
+            names = [item["function"]["name"] for item in self.agent.tools.schemas(remote=True)]
+            await self.send(token, chat_id,
+                "🛠 <b>KiloFrame tools</b>\n" + html.escape(", ".join(names)) +
+                "\n\nTry: ‘Research Ollama tool calling and cite sources’, ‘Inspect disk space’, or ‘Read /tmp/example.txt’. "
+                "Machine actions run on the KiloFrame host. Changes use Approve/Deny buttons.", self.MENU)
+            return True
+        if name in {"models", "model"}:
             try:
-                provider_name = (
-                    argument
-                    or self._chat_providers.get(chat_id)
-                    or self.agent.providers.default_name()
-                )
-                models = await asyncio.to_thread(
-                    self.agent.providers.list_models, provider_name, False
-                )
-                provider = self.agent.providers.resolve(provider_name)
-                shown = models[:30]
-                lines = [
-                    f"🧠 <b>{html.escape(provider.name)} models</b>",
-                    *[f"• <code>{html.escape(model)}</code>" for model in shown],
-                ]
-                if len(models) > len(shown):
-                    lines.append(f"<i>…and {len(models) - len(shown)} more</i>")
-                lines.append("\nSelect with <code>/model MODEL_ID</code>.")
+                provider_name = self._chat_providers.get(chat_id)
+                if provider_name:
+                    if name == "models":
+                        models = await asyncio.to_thread(self.agent.providers.list_models, provider_name, False)
+                    elif argument:
+                        selected = self.agent.providers.set_model(provider_name, argument)
+                    else:
+                        selected = self.agent.providers.resolve(provider_name).model
+                    route = "Cloud · " + provider_name
+                else:
+                    server = self.agent.runtime.active_server()
+                    if server is None:
+                        raise RuntimeError("No Ollama server configured. Use kiloframe localset on the host.")
+                    route = "Ollama · " + server.name
+                    if name == "models" or argument:
+                        inventory = await asyncio.to_thread(self.agent.runtime.client().list_models)
+                        models = [str(model.get("name") or model.get("model")) for model in inventory]
+                    if name == "model":
+                        selected = server.model
+                        if argument:
+                            if argument not in models:
+                                raise RuntimeError("Model is not downloaded on this Ollama server; choose one from /models.")
+                            self.agent.runtime.config.set_model(server.name, argument)
+                            selected = argument
+                if name == "models":
+                    lines = ["🧠 <b>" + html.escape(route) + " models</b>"]
+                    lines.extend("• <code>" + html.escape(model) + "</code>" for model in models[:30])
+                    if not models:
+                        lines.append("No downloaded models found. Pull one using kiloframe local pull on the host.")
+                    lines.append("Select with <code>/model MODEL_ID</code>.")
+                else:
+                    lines = ["🧠 <b>" + html.escape(route) + "</b>", "<code>" + html.escape(selected or "No model selected") + "</code>"]
+                    if argument and not provider_name:
+                        lines.append("This updates the shared Ollama model for KiloFrame's local route.")
                 await self.send(token, chat_id, "\n".join(lines), self.MENU)
             except Exception as exc:
-                await self.send(
-                    token,
-                    chat_id,
-                    f"⚠️ Could not list models: <code>{html.escape(str(exc))}</code>",
-                    self.MENU,
-                )
-            return True
-        if name == "model":
-            provider_name = (
-                self._chat_providers.get(chat_id) or self.agent.providers.default_name()
-            )
-            if not argument:
-                try:
-                    provider = self.agent.providers.resolve(provider_name)
-                    await self.send(
-                        token,
-                        chat_id,
-                        f"🧠 <code>{html.escape(provider.label)}</code>",
-                        self.MENU,
-                    )
-                except Exception as exc:
-                    await self.send(
-                        token,
-                        chat_id,
-                        f"⚠️ <code>{html.escape(str(exc))}</code>",
-                        self.MENU,
-                    )
-                return True
-            first, separator, remainder = argument.partition(" ")
-            configured = self.agent.providers.providers()
-            if separator and first in configured:
-                provider_name, model = first, remainder.strip()
-            else:
-                model = argument
-            try:
-                if not provider_name:
-                    raise RuntimeError("no cloud provider is configured")
-                selected = self.agent.providers.set_model(provider_name, model)
-                self._chat_providers[chat_id] = provider_name
-                await self.send(
-                    token,
-                    chat_id,
-                    f"✅ <b>Cloud model selected</b>\n<code>{html.escape(provider_name)}:{html.escape(selected)}</code>",
-                    self.MENU,
-                )
-            except Exception as exc:
-                await self.send(
-                    token, chat_id, f"⚠️ <code>{html.escape(str(exc))}</code>", self.MENU
-                )
+                await self.send(token, chat_id, "⚠️ " + html.escape(str(exc)), self.MENU)
             return True
         if name == "agent":
             if not argument:
@@ -777,67 +805,32 @@ class TelegramBridge:
             return True
         if name == "status":
             try:
-                status = self.agent.runtime.status()
-                profile = status.get("profile") or {}
-                running = bool(status.get("running"))
-                total = profile.get("total_mb") or 0
-                avail = profile.get("available_mb") or 0
-                mem_line = f"{avail} / {total} MiB free"
-                if total:
-                    mem_line = f"{self._bar(avail / total)}  {mem_line}"
-                uptime = int(status.get("uptime_seconds", 0) or 0)
-                um, us = divmod(uptime, 60)
-                uh, um = divmod(um, 60)
-                uptime_str = (
-                    f"{uh}h {um}m" if uh else (f"{um}m {us}s" if um else f"{us}s")
-                )
-                selected_provider = self._chat_providers.get(chat_id)
-                if selected_provider:
-                    route = self.agent.providers.resolve(selected_provider).label
-                    context_limit = self.agent.providers.context_limit(selected_provider)
-                    if not context_limit:
-                        try:
-                            await asyncio.wait_for(
-                                asyncio.to_thread(
-                                    self.agent.providers.list_models,
-                                    selected_provider,
-                                    False,
-                                ),
-                                timeout=10,
-                            )
-                        except Exception:
-                            pass
-                        context_limit = self.agent.providers.context_limit(selected_provider)
-                    context_text = (
-                        f"{context_limit} tokens"
-                        if context_limit
-                        else "provider-managed (not advertised)"
-                    )
-                    compute_text = "hosted cloud"
+                provider_name = self._chat_providers.get(chat_id)
+                lines = ["📊 <b>KiloFrame · live status</b>"]
+                if provider_name:
+                    provider = self.agent.providers.resolve(provider_name)
+                    lines += ["☁️ <b>Cloud route</b>", "<code>" + html.escape(provider.label) + "</code>",
+                              "Provider configured; availability is verified when a request runs."]
+                    limit = self.agent.providers.context_limit(provider_name)
+                    lines.append("Context: " + (str(limit) + " tokens" if limit else "provider-managed"))
                 else:
-                    route = f"local:{Path(str(status.get('model', ''))).stem}"
-                    context_text = f"{profile.get('context_size')} tokens"
-                    compute_text = (
-                        f"threads {profile.get('threads')}   ·   gpu layers {profile.get('gpu_layers')}"
-                    )
-                lines = [
-                    f"{'🟢' if running else '🔴'} <b>Kilo — {'running' if running else 'stopped'}</b>",
-                    "",
-                    f"🧠 <b>route</b>    <code>{html.escape(route)}</code>",
-                    f"🧩 <b>agent</b>    <code>{html.escape(self._chat_profiles.get(chat_id, 'auto'))}</code>",
-                    f"⏱ <b>uptime</b>   {uptime_str}",
-                    f"📐 <b>context</b>  {context_text}",
-                    f"⚙️ <b>compute</b>  {compute_text}",
-                    f"💾 <b>memory</b>   {mem_line}",
-                ]
+                    server = self.agent.runtime.active_server()
+                    healthy = await asyncio.wait_for(self.agent.runtime.healthy(), timeout=5)
+                    running = await asyncio.to_thread(self.agent.runtime.client().running_models) if healthy else []
+                    model = server.model if server else ""
+                    loaded = any(m.get("name") == model or m.get("model") == model for m in running)
+                    lines += ["🏠 <b>Local / private · Ollama</b>",
+                              "Server: <code>" + html.escape(server.url if server else "not configured") + "</code>",
+                              "Endpoint: " + ("reachable" if healthy else "unreachable"),
+                              "Model: <code>" + html.escape(model or "not selected") + "</code>",
+                              "State: " + ("loaded" if loaded else "loads on request" if model and healthy else "unavailable")]
+                active = sum(not task.done() for task in self._chat_replies.get(chat_id, set()))
+                lines += ["Active / queued requests in this chat: " + str(active),
+                          "Agent: " + html.escape(self._chat_profiles.get(chat_id, "auto")),
+                          "Session: " + html.escape(self._sessions.get(chat_id, "new"))]
                 await self.send(token, chat_id, "\n".join(lines), self.MENU)
             except Exception as exc:
-                await self.send(
-                    token,
-                    chat_id,
-                    f"⚠️ Could not read status: <code>{html.escape(str(exc))}</code>",
-                    self.MENU,
-                )
+                await self.send(token, chat_id, "⚠️ Status unavailable: " + html.escape(str(exc)), self.MENU)
             return True
         return False
 

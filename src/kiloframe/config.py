@@ -38,7 +38,7 @@ class Settings:
     # A conservative default avoids an Ollama GPU OOM from an oversized KV cache.
     # Operators can raise it deliberately after checking their server capacity.
     ollama_context_tokens: int = field(
-        default_factory=lambda: int(os.environ.get("KILOFRAME_OLLAMA_CONTEXT_TOKENS", "2048"))
+        default_factory=lambda: int(os.environ.get("KILOFRAME_OLLAMA_CONTEXT_TOKENS", "8192"))
     )
     max_read_bytes: int = 2 * 1024 * 1024
     memory_message_limit: int = 10_000

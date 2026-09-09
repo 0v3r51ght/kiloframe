@@ -167,26 +167,34 @@ class ToolRegistry:
             selected: set[str] = set()
             if any(term in text for term in ("file", "folder", "directory", "repo", "repository", "source", "read ", "grep", "search code")):
                 selected.update({"read_file", "list_files", "search_files"})
-            if any(term in text for term in ("write", "create file", "edit", "modify", "save ", "command", "run ", "install", "test", "build")):
+            if any(term in text for term in ("write", "create file", "edit", "modify", "save ", "command", "run ", "install", "run tests", "unit test", "test suite", "build", "calculate", "compute", "python", "execute")):
                 selected.update({"write_file", "run_command"})
             if any(term in text for term in ("cpu", "memory", "disk", "system", "machine", "hardware", "uptime")):
                 selected.add("system_info")
-            if any(term in text for term in ("search web", "search the web", "research", "latest", "news", "look up", "find online", "internet")):
-                selected.add("web_search")
+            if any(term in text for term in ("search", "research", "latest", "news", "look up", "lookup", "online", "internet", "browse", "website", "sources", "verify", "documentation", "docs")):
+                selected.update({"web_search", "web_fetch"})
             if any(term in text for term in ("http://", "https://", "web page", "fetch", "url")):
                 selected.add("web_fetch")
             if any(term in text for term in ("remember", "preference", "recall", "history", "skill")):
                 selected.update({"remember", "recall", "search_history", "list_skills", "save_skill"})
+            if not selected and not re.fullmatch(
+                r"(?:hi|hello|hey|thanks|thank you|good (?:morning|evening|night)|"
+                r"how are you|who are you|what .* (?:give|tell|say).*|reply.*|say.*)[.!?,\s\w-]*", text
+            ):
+                # An unrecognised task still needs a way to inspect and act.
+                selected.update({"system_info", "list_files", "read_file", "search_files",
+                                 "run_command", "write_file", "web_search", "web_fetch"})
             schemas = [tool.openai_schema() for name, tool in self._tools.items() if name in selected]
         # Tools published by MCP servers are external code; remote callers never get them.
         if self.mcp is not None and not remote:
             mcp_schemas = self.mcp.schemas()
-            if not request or any(term in text for term in ("mcp", "tool", "serena", "context7")):
+            if not request:
                 schemas.extend(mcp_schemas)
-            elif any(term in text for term in ("code", "repository", "repo", "project", "function", "class", "source", "file")):
-                schemas.extend(schema for schema in mcp_schemas if "__serena__" in schema["function"]["name"])
-            elif any(term in text for term in ("documentation", "docs", "api", "library", "framework", "package")):
-                schemas.extend(schema for schema in mcp_schemas if "__context7__" in schema["function"]["name"])
+            else:
+                for server_name in ("serena", "context7"):
+                    if server_name in text:
+                        schemas.extend(schema for schema in mcp_schemas
+                                       if "__" + server_name + "__" in schema["function"]["name"])
         return schemas
 
     async def execute(

@@ -229,11 +229,16 @@ _ROUTES: tuple[tuple[str, tuple[str, ...]], ...] = (
     (
         "coding",
         (
-            "code",
+            "source code",
+            "write code",
+            "python",
+            "javascript",
             "bug",
             "compile",
             "build",
-            "test",
+            "run tests",
+            "unit test",
+            "test suite",
             "refactor",
             "function",
             "repository",

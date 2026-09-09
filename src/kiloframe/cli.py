@@ -265,6 +265,10 @@ def build_parser() -> argparse.ArgumentParser:
     ls_default = ls_sub.add_parser("default", help="set the active server")
     ls_default.add_argument("name")
 
+    ls_options = ls_sub.add_parser("options", help="set per-server Ollama options; omit values to reset")
+    ls_options.add_argument("name")
+    ls_options.add_argument("values", nargs="*", help="num_ctx=8192 num_batch=32 (replaces overrides)")
+
     tg = sub.add_parser("telegram", help="manage the Telegram bot (token and allowed chats)")
     tg_sub = tg.add_subparsers(dest="telegram_command")
     tg_sub.add_parser("status", help="show whether Telegram is enabled and which chats are allowed")
@@ -287,10 +291,34 @@ def telegram_command(args: argparse.Namespace, settings: Settings) -> int:
 
     path = settings.telegram_path
     action = getattr(args, "telegram_command", None) or "status"
+    if settings.socket_path.exists():
+        async def via_daemon():
+            client = RPCClient(settings.socket_path)
+            if action == "set-token":
+                return await client.request("set_telegram_token", token=args.token.strip())
+            return await client.request("telegram_config", action=action, chat_id=getattr(args, "chat_id", None))
+        try:
+            result = asyncio.run(via_daemon())
+        except (OSError, KiloFrameError) as exc:
+            print(f"Telegram configuration unavailable: {exc}", file=sys.stderr)
+            return 1
+        if not result.get("ok"):
+            print(result.get("error", "Telegram configuration failed"), file=sys.stderr)
+            return 1
+        if action == "status":
+            configured = result["configured"]
+            allowed = result["allowed_chat_ids"]
+            print("telegram   " + ("enabled" if allowed else "awaiting /start") if configured else "telegram   disabled")
+            print("token      " + ("set" if configured else "unset"))
+            print("allowed    " + (", ".join(map(str, allowed)) or "none"))
+        else:
+            print("Telegram configuration updated.")
+        return 0
     try:
         config = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
-    except (OSError, json.JSONDecodeError):
-        config = {}
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"Cannot read Telegram configuration: {exc}", file=sys.stderr)
+        return 1
     config.setdefault("token", "")
     allowed = [int(x) for x in config.get("allowed_chat_ids", []) if str(x).lstrip("-").isdigit()]
 
@@ -419,7 +447,16 @@ async def localset_command(args: argparse.Namespace, client: RPCClient) -> int:
             for s in info["servers"]:
                 mark = f"{GREEN}*{RESET} " if s["name"] == default else "  "
                 model = f"  model {s['model']}" if s.get("model") else ""
-                print(f"{mark}{s['name']:<14}{s['url']}{model}")
+                print(f"{mark}{s['name']:<14}{s['url']}{model}  options={s.get('options', {})}")
+        elif action == "options":
+            try:
+                options = dict(value.split("=", 1) for value in args.values)
+            except ValueError:
+                print("Use key=value, for example num_ctx=8192 num_batch=32")
+                return 1
+            data = await client.request("ollama_set_options", name=args.name, options=options)
+            print(data.get("options") if data.get("ok") else data.get("error"))
+            return 0 if data.get("ok") else 1
         elif action == "add":
             data = await client.request("ollama_add_server", name=args.name, url=args.url)
             if data.get("ok"):

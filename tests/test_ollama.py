@@ -99,7 +99,7 @@ class OllamaProtocolTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIn("retrying", events[0]["status"])
         self.assertNotIn("num_gpu", captured[0]["options"])
-        self.assertEqual(captured[1]["options"]["num_gpu"], 0)
+        self.assertEqual(captured[1]["options"]["num_batch"], 32)
         self.assertEqual(events[1]["delta"]["content"], "works")
 
 

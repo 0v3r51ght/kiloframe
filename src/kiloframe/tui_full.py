@@ -290,11 +290,14 @@ class KiloApp:
         self._perm_future: asyncio.Future | None = None   # resolved by 1/2/3 approval input
         self._line_buf = ""   # accumulates a streamed line until it can be boxed
         self.usage: dict[str, Any] = {}   # token usage from the last reply
+        self._reply_text_start: int | None = None
         self._answered = False            # whether the current reply has started printing
         self._pending: dict[str, Any] | None = None   # awaited inline input (selector / key)
         self._choice_options: list[tuple[str, str]] = []
         self._choice_index = 0
         self._follow_output = True
+        self._preview_start: int | None = None
+        self._cloud_state = "configured · awaiting request"
         self._catalog: dict[str, Any] = {}
         self._cloud_options: list[tuple[str, dict[str, Any]]] = []
         self._ollama_models: list[dict[str, Any]] = []
@@ -340,9 +343,17 @@ class KiloApp:
         inner = max(1, self._cw() - 3)
         self._append("\u2502 " + text[:inner].ljust(inner) + "\u2502\n")
 
+    def _remove_preview(self) -> None:
+        if self._preview_start is not None:
+            buff = self.output.buffer
+            text = buff.text[:self._preview_start]
+            buff.set_document(Document(text, min(buff.cursor_position, len(text))), bypass_readonly=True)
+            self._preview_start = None
+
     def _stream_boxed(self, text: str) -> None:
         """Buffer streamed tokens and emit complete closed-box lines as they fill."""
         inner = max(1, self._cw() - 3)
+        self._remove_preview()
         self._line_buf += text
         while True:
             nl = self._line_buf.find("\n")
@@ -355,6 +366,10 @@ class KiloApp:
             else:
                 break
 
+        if self._line_buf:
+            self._preview_start = len(self.output.buffer.text)
+            self._bline(self._clean_md(self._line_buf))
+
     def _clean_md(self, line: str) -> str:
         """Strip markdown noise (**, *, #, >) so replies read clean; the lexer colours
         the rest. Runs per already-buffered line, so no newlines to worry about."""
@@ -365,6 +380,7 @@ class KiloApp:
         return s
 
     def _flush_boxed(self) -> None:
+        self._remove_preview()
         if self._line_buf:
             self._bline(self._clean_md(self._line_buf))
             self._line_buf = ""
@@ -411,33 +427,46 @@ class KiloApp:
                 segs.append(("class:banner", ch))
         return segs
 
+    def _route_state(self) -> str:
+        if self.status.get("daemon_offline"):
+            return "daemon offline"
+        if self.cloud_active:
+            return self._cloud_state
+        if not self.status.get("healthy"):
+            return "Ollama offline"
+        if not self.status.get("model"):
+            return "select a model (/local)"
+        selected = str(self.status.get("model"))
+        if any(m.get("name") == selected or m.get("model") == selected for m in self._ollama_running):
+            return "model loaded"
+        return "model selected · not loaded"
+
     def _banner_text(self):
-        online = bool(self.status.get("healthy"))
-        # A breathing dot animates even when idle, so the header never looks frozen.
-        pulse = PULSE[self.spin % len(PULSE)]
-        dot = f"{pulse} online" if online else "○ offline"
+        width = shutil.get_terminal_size((80, 24)).columns
+        state = self._route_state()
+        online = not self.status.get("daemon_offline") and (self.cloud_active or self.status.get("healthy"))
         info = [
-            [("class:banner.hi", "KILOFRAME  "), ("class:on" if online else "class:off", dot)],
-            [("class:tagline", "Kilo's framework · multiple AI providers")],
-            [("class:on", f"model   {self.model_name}")],
-            [("class:dim", f"server  {self.server_name}")],
-            [("class:dim", "tools   files · shell · web · memory · skills")],
+            [("class:banner.hi", "KILOFRAME  "), ("class:on" if online else "class:off", state)],
+            [("class:tagline", "Cloud inference" if self.cloud_active else "Local / private · Ollama")],
+            [("class:on", "model   " + self.model_name)],
+            [("class:dim", "route   " + (self.cloud_provider if self.cloud_active else self.server_name))],
+            [("class:dim", "work    " + (self.phase if self.busy else "idle"))],
             [("class:tagline", "/help · F2 sidebar · Ctrl-Q quit")],
         ]
-        # The block wordmark is the non-negotiable part of the header. On an 80-column
-        # terminal it fits, but the additional status column does not; dropping that
-        # secondary column prevents the logo from writing into (or under) the sidebar.
-        inline_info = self._cw() >= len(KILO_ART[0]) + 34
-        rows: list[tuple[str, str]] = []
+        art_width = max(map(len, KILO_ART)) + 5
+        inline_info = width >= art_width + 34
+        rows = []
         for i, art in enumerate(KILO_ART):
-            rows += self._shimmer(art, i)
-            line = info[i] if inline_info and i < len(info) else []
-            rows += line
+            rows.append(("class:banner", ("  " + art).ljust(art_width)))
+            if inline_info:
+                remaining = width - art_width - 1
+                for style, value in info[i]:
+                    rows.append((style, value[:max(0, remaining)]))
+                    remaining -= len(value)
             rows.append(("", "\n"))
-        # Align the credit with the left edge of the block wordmark. Centering it in
-        # the entire conversation pane made it drift awkwardly as the sidebar changed.
         rows.append(("class:tagline", "  " + KILOFRAME_CREDIT))
-        rows.append(("", "\n"))
+        if not inline_info:
+            rows.append(("class:dim", " · " + ("cloud" if self.cloud_active else "local") + " · " + state))
         return rows
 
     def _stats_bar(self):
@@ -457,21 +486,14 @@ class KiloApp:
             # Do not call the application ready merely because the daemon socket is
             # alive.  A reachable Ollama server still needs a selected model.
             wave = "".join(PULSE[(self.spin + i) % len(PULSE)] for i in range(3))
-            if not self.status.get("healthy"):
-                state = "Ollama offline"
-            elif not self.status.get("model"):
-                state = "select a model (/local)"
-            elif not self._ollama_running:
-                state = "model selected · not loaded"
-            else:
-                state = "ready"
+            state = self._route_state()
             head = [("class:stat", f" {wave} "), ("class:dim", state)]
         bar = head + [
             ("class:stat.k", "   ⏱ "), ("class:stat", f"{elapsed:0.0f}s"),
             ("class:stat.k", "   ↗ requests "), ("class:stat", str((self.status.get("memory") or {}).get("requests", 0))),
             ("class:stat.k", "   🔧 tools "), ("class:stat", f"{self.tools_used}"),
             ("class:stat.k", "   ⇥ tokens "), ("class:stat", f"{self.tokens}"),
-            ("class:stat.k", "   ⌁ thinking "), ("class:stat", f"{self.thinking if self.thinking != 'off' else 'auto'}"),
+            ("class:stat.k", "   ⌁ thinking "), ("class:stat", f"{self.thinking}"),
             ("class:stat.k", "   ⬡ "),
             ("class:kilo", self._short_model()),
         ]
@@ -480,69 +502,62 @@ class KiloApp:
         qn = self._queue.qsize() if getattr(self, "_queue", None) else 0
         if qn:
             bar += [("class:stat.k", "   ⧉ queued "), ("class:stat", f"{qn}")]
-        bg = len(getattr(self, "_bg_tasks", ()))
-        if bg:
-            bar += [("class:stat.k", "   ◌ background "), ("class:stat", str(bg))]
         if self.private_mode:
             bar += [("class:stat.k", "   🛡 "), ("class:kilo", "private")]
         return bar
 
     def _sidebar_text(self):
         mem = self.status.get("memory") or {}
-        rows: list[tuple[str, str]] = [
-            ("class:panel.title", " KILOFRAME\n\n"),
-            ("class:panel.key", " model    "), ("class:panel.hi", f"{self.model_name}\n"),
-            ("class:panel.key", " route    "), ("", f"{('cloud·' + self.cloud_provider) if self.cloud_active else (self.server_name or 'ollama')}\n"),
-            ("class:panel.key", " thinking "), ("", f"{self.thinking if self.thinking != 'off' else 'auto'}\n"),
-            ("class:panel.key", " effort   "), ("", f"{self.effort}\n\n"),
-
-            ("class:panel.title", " TASKS\n\n"),
-        ]
-        qn = self._queue.qsize() if getattr(self, "_queue", None) else 0
+        rows = []
+        def line(value, style="class:panel.key"):
+            rows.append((style, " " + str(value)[:28] + "\n"))
+        line("CLOUD INFERENCE" if self.cloud_active else "LOCAL / PRIVATE", "class:panel.title")
+        line(self._short_model(), "class:panel.hi")
+        line(self.cloud_provider if self.cloud_active else (self.status.get("server_name") or self.server_name or "Ollama"))
+        line(self._route_state(), "class:dim")
+        line("working · " + (self.phase or "starting") if self.busy else "idle", "class:kilo")
+        rows.append(("", "\n"))
+        line("TASKS", "class:panel.title")
         if self.busy and self.current_task:
-            rows.append(("class:panel.hi", " ● ")); rows.append(("", f"{self.current_task[:30]}\n"))
+            line(self.current_task, "class:panel.hi")
+        elif self._queue and self._queue.qsize():
+            line(f"{self._queue.qsize()} queued", "class:kilo")
         else:
-            rows.append(("class:dim", " idle\n"))
-        if qn:
-            rows.append(("class:panel.key", " queued   ")); rows.append(("", f"{qn}\n"))
+            line("idle", "class:dim")
         rows.append(("", "\n"))
-
-        rows.append(("class:panel.title", " KILO'S WORK\n\n"))
+        line("KILO'S WORK", "class:panel.title")
         if self._work_items:
-            for text, done in self._work_items[-4:]:
-                mark = "✓" if done else "●"
-                cls = "class:panel.hi" if done else "class:kilo"
-                rows.append((cls, f" {mark} {text[:30]}\n"))
+            for item, done in self._work_items[-4:]:
+                line(("✓ " if done else "● ") + item, "class:panel.hi" if done else "class:kilo")
         else:
-            rows.append(("class:dim", " no work yet\n"))
+            line("no work yet", "class:dim")
         rows.append(("", "\n"))
-
-        rows.append(("class:panel.title", " CONTEXT\n\n"))
-        rows.append(("class:panel.key", " agent    ")); rows.append(("", f"{self.agent_name or 'auto'}\n"))
-        rows.append(("class:panel.key", " private  ")); rows.append(("class:on" if self.private_mode else "class:dim", f"{'on' if self.private_mode else 'off'}\n"))
-        sid = self.session_id or ""
-        rows.append(("class:panel.key", " session  ")); rows.append(("", f"{sid[:8] if sid else '—'}\n\n"))
-
-        rows.append(("class:panel.title", " PROCESSES\n\n"))
-        bg = len(getattr(self, "_bg_tasks", ()))
-        rows.append(("class:panel.key", " background ")); rows.append(("", f"{bg}\n"))
-        if self._ollama_running:
-            for m in self._ollama_running[:2]:
-                rows.append(("class:kilo", f" ▶ {str(m.get('name', ''))[:26]}\n"))
+        line("CONTEXT", "class:panel.title")
+        line(f"agent {self.agent_name or 'auto'}")
+        line(f"thinking {self.thinking} · effort {self.effort}")
+        line("session " + (self.session_id or "new")[:12], "class:dim")
+        rows.append(("", "\n"))
+        line("PROCESSES", "class:panel.title")
+        processes = self.status.get("processes") or []
+        if processes:
+            for process in processes[:5]:
+                line(f"{process.get('pid')} {process.get('name','')}", "class:on")
         else:
-            rows.append(("class:dim", " no models loaded\n"))
+            line("process data unavailable", "class:dim")
+        if not self.cloud_active and self._ollama_running:
+            for model in self._ollama_running[:2]:
+                line("Ollama " + str(model.get("name", "")), "class:kilo")
+        rows.append(("", "\n"))
+        line("MEMORY", "class:panel.title")
+        line(f"sessions {mem.get('sessions', '?')} · facts {mem.get('facts', '?')}")
+        line(f"skills {mem.get('skills', '?')} · requests {mem.get('requests', '?')}", "class:dim")
+        rows.append(("", "\n"))
+        line("INTEGRATIONS", "class:panel.title")
         for server in self.status.get("mcp", []):
-            if server.get("state") != "disabled":
-                rows.append(("class:panel.key", f" MCP {server['name'][:13]} "))
-                rows.append(("class:on" if server["state"] == "connected" else "class:off",
-                             f"{len(server.get('tools', []))} tools\n" if server["state"] == "connected" else f"{server['state']}\n"))
-
-        rows += [
-            ("", "\n"), ("class:panel.title", " MEMORY\n"),
-            ("class:panel.key", " sessions "), ("", f"{mem.get('sessions', '?')}"),
-            ("class:panel.key", " · facts "), ("", f"{mem.get('facts', '?')}"),
-            ("class:panel.key", " · skills "), ("", f"{mem.get('skills', '?')}\n"),
-        ]
+            state = server.get("state")
+            if state != "disabled":
+                line(f"{server.get('name','')}: {state} · {len(server.get('tools', []))} tools",
+                     "class:on" if state == "connected" else "class:off")
         return rows
 
     def _sidebar_visible(self) -> bool:
@@ -603,6 +618,7 @@ class KiloApp:
                 self.app.invalidate()
 
     def _enqueue(self, text: str, provider: str | None = None) -> None:
+        self._follow_output = True
         inner = max(1, self._cw() - 3)
         self._append("\n" + self._rule("Sir") + "\n")
         for para in text.split("\n"):
@@ -623,6 +639,12 @@ class KiloApp:
         new = buff.text + text
         position = len(new) if self._follow_output else buff.cursor_position
         buff.set_document(Document(new, position), bypass_readonly=True)
+        if self._follow_output:
+            # The output is not focused; explicitly move its viewport as well as cursor.
+            self.output.window.vertical_scroll = max(0, buff.document.line_count - 1)
+        app = getattr(self, "app", None)
+        if app:
+            app.invalidate()
 
     def _scroll_to(self, row: int) -> None:
         document = self.output.buffer.document
@@ -896,6 +918,8 @@ class KiloApp:
             value = parts[2].strip() if len(parts) == 3 else ""
             if action == "list":
                 self._spawn(self._localset_menu())
+            elif action == "options":
+                self._spawn(self._localset_options(value))
             elif action == "add" and len(value.split(maxsplit=1)) == 2:
                 name, url = value.split(maxsplit=1)
                 self._spawn(self._localset_add(name, url))
@@ -1099,6 +1123,7 @@ class KiloApp:
         """Activate a configured provider and, if a question was queued, send it now."""
         self.cloud_provider = name
         self.cloud_active = True
+        self._cloud_state = "configured · awaiting request"
         self._append(f"\n— routing to cloud · {name} (use /switch for Ollama) —\n")
         self._spawn(self._refresh_model_label())
         if question:
@@ -1123,6 +1148,7 @@ class KiloApp:
                 return
             self.cloud_provider = default
         self.cloud_active = True
+        self._cloud_state = "configured · awaiting request"
         self._append(f"\n— switched to cloud · {self.cloud_provider} —\n")
         await self._refresh_model_label()
 
@@ -1409,12 +1435,13 @@ class KiloApp:
         server's selected model, or the cloud provider's current model."""
         try:
             if self.cloud_active and self.cloud_provider:
-                info = await self.client.request("provider_info")
+                info = await self.client.request("provider_info", name=self.cloud_provider)
                 model = info.get("model")
                 self.model_name = f"{info.get('default')}:{model}" if model else f"cloud·{self.cloud_provider}"
-                self.server_name = ""
+                self.server_name = self.cloud_provider
             else:
                 st = await self.client.request("status")
+                self.status = st
                 self.model_name = str(st.get("model") or "Ollama") or "Ollama"
                 self.server_name = str(st.get("server") or "")
         except (ConnectionError, FileNotFoundError, OSError):
@@ -1654,6 +1681,15 @@ class KiloApp:
         else:
             self._append(f"\n⚠ {data.get('error', 'could not unload')}\n")
 
+    async def _localset_options(self, value: str) -> None:
+        try:
+            name, *values = value.split()
+            options = dict(item.split("=", 1) for item in values)
+            result = await self.client.request("ollama_set_options", name=name, options=options)
+            self._command_panel("Ollama server options", [str(result.get("options") if result.get("ok") else result.get("error"))])
+        except (ValueError, OSError) as exc:
+            self._command_panel("Ollama server options", ["Use /localset options NAME num_ctx=8192 num_batch=32", str(exc)])
+
     async def _localset_menu(self) -> None:
         """The /localset command: add/remove/switch Ollama servers."""
         try:
@@ -1767,6 +1803,9 @@ class KiloApp:
         self._active = asyncio.current_task()
         self.tokens = self.tools_used = 0
         self._answered = False
+        self._reply_text_start = None
+        self._preview_start = None
+        self._line_buf = ""
         self._work_split = False
         self._had_work = False
         self._work_items = []
@@ -1836,10 +1875,22 @@ class KiloApp:
                         label = "\u2500\u2500 reply "
                         self._bline(label + "\u2500" * max(0, inner - len(label)))
                         self._work_split = True
+                    if self._reply_text_start is None:
+                        self._reply_text_start = len(self.output.buffer.text)
                     self.streaming = True
                     self.tokens += 1
                     self._stream_boxed(event.get("text", ""))
+                elif kind == "response_reset":
+                    self._remove_preview()
+                    if self._reply_text_start is not None:
+                        buff = self.output.buffer
+                        text = buff.text[:self._reply_text_start]
+                        buff.set_document(Document(text, len(text)), bypass_readonly=True)
+                    self._reply_text_start = None
+                    self._line_buf = ""
+                    self.streaming = False
                 elif kind == "tool_start":
+                    self._reply_text_start = None
                     self.tools_used += 1
                     self.phase = f"running {event['name']}"
                     self.streaming = False
@@ -1858,12 +1909,17 @@ class KiloApp:
                     if self._work_items:
                         self._work_items[-1] = (self._work_items[-1][0], True)
                 elif kind == "error":
+                    if provider:
+                        self._cloud_state = "last request failed"
+                    self._flush_boxed()
                     self._append(f"\n⚠ {event.get('error')}\n")
                 elif kind == "permission":
                     allow, remember = await self._ask_permission(event)
                     writer.write((json.dumps({"type": "permission_response", "id": event.get("id"), "allow": allow, "remember": remember}) + "\n").encode())
                     await writer.drain()
                 elif kind == "done":
+                    if provider:
+                        self._cloud_state = "last request succeeded"
                     if self._answered:
                         self._flush_boxed()
                         self._append(self._rule() + "\n")
@@ -1977,26 +2033,22 @@ class KiloApp:
 
         return kb
 
+    async def _poll_status(self) -> None:
+        while True:
+            try:
+                self.status = await asyncio.wait_for(self.client.request("status"), timeout=5)
+                await self._refresh_model_label()
+                await asyncio.wait_for(self._refresh_ollama_running(), timeout=5)
+            except Exception:
+                self.status = {"daemon_offline": True, "healthy": False}
+                self._ollama_running = []
+            self.app.invalidate()
+            await asyncio.sleep(2)
+
     async def _tick(self) -> None:
-        """Animate the spinner and refresh status so the interface always feels alive."""
-        n = 0
+        # Animation must never await network/status I/O.
         while True:
             self.spin += 1
-            n += 1
-            if n % 25 == 0:  # ~ every 2.5s
-                try:
-                    self.status = await self.client.request("status")
-                    # Don't overwrite the cloud model label with the local model name while a
-                    # cloud provider is the active route.
-                    if not self.cloud_active:
-                        self.model_name = str(self.status.get("model") or "Ollama") or "Ollama"
-                        self.server_name = str(self.status.get("server") or "")
-                except Exception:
-                    pass
-            if n % 50 == 0 and not self.cloud_active:  # ~ every 5s
-                await self._refresh_ollama_running()
-            # Always invalidate so the header dot and idle wave keep moving; the rate is
-            # modest, so this is cheap even while nothing is happening.
             self.app.invalidate()
             await asyncio.sleep(0.12)
 
@@ -2017,12 +2069,17 @@ class KiloApp:
         self._queue = asyncio.Queue()
         self._worker = asyncio.create_task(self._worker_loop())
         ticker = asyncio.create_task(self._tick())
+        poller = asyncio.create_task(self._poll_status())
         self._spawn(self._refresh_ollama_running())
         try:
             await self.app.run_async()
         finally:
             ticker.cancel()
+            poller.cancel()
             self._worker.cancel()
+            for task in self._bg_tasks:
+                task.cancel()
+            await asyncio.gather(ticker, poller, self._worker, *self._bg_tasks, return_exceptions=True)
 
 
 def _you(text: str) -> str:
