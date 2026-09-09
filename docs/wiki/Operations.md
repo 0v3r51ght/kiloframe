@@ -32,6 +32,12 @@ sudo journalctl -u kiloframe -n 100 --no-pager
 sudo journalctl -u kiloframe -f
 ```
 
+The installer enables the unit for `multi-user.target`. Systemd therefore starts it after
+each boot, restarts it after an unexpected failure, and stops it cleanly during shutdown.
+The SQLite database and configuration live under `/var/lib/kiloframe` and
+`/etc/kiloframe`; `/run/kiloframe` is disposable and is recreated with the PID file and
+RPC socket on every start.
+
 ## Non-systemd hosts
 
 ```bash
@@ -42,8 +48,10 @@ kiloframe logs -n 100
 ```
 
 The control command validates a stored PID against the process command line before
-signalling it. The manual daemon command printed by status can be used with an external
-supervisor.
+signalling it. `sudo kiloframe start` uses `runuser` when available, falls back to `sudo`,
+and always launches the daemon as the service account with the installed Python runtime.
+For reboot persistence on a non-systemd host, place that command under the host's init
+supervisor; the KiloFrame wrapper alone cannot register a boot service there.
 
 ## Upgrade
 

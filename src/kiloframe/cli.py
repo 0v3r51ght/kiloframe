@@ -5,6 +5,7 @@ import asyncio
 import json
 import os
 import signal
+import shutil
 import subprocess
 import sys
 import time
@@ -174,9 +175,18 @@ def _manual_service_action(action: str, settings: Settings) -> int:
         if runtime_user == "root":
             print("Runtime account must be non-root; rerun the installer.", file=sys.stderr)
             return 1
+        python_bin = sys.executable or shutil.which("python3") or shutil.which("python")
+        if not python_bin:
+            print("Python 3 is not available; reinstall KiloFrame.", file=sys.stderr)
+            return 1
+        daemon_command = ["env", "PYTHONPATH=/opt/kiloframe/app/src", "HOME=/home/" + runtime_user,
+                          python_bin, "-m", "kiloframe.daemon"]
+        if shutil.which("runuser"):
+            launcher = ["runuser", "-u", runtime_user, "--", *daemon_command]
+        else:
+            launcher = ["sudo", "-H", "-u", runtime_user, *daemon_command]
         subprocess.Popen(
-            ["sudo", "-H", "-u", runtime_user, "env", "PYTHONPATH=/opt/kiloframe/app/src",
-             "/usr/bin/python3", "-m", "kiloframe.daemon"],
+            launcher,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,

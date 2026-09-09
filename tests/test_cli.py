@@ -119,6 +119,27 @@ class CLITests(unittest.TestCase):
         self.assertIn("daemon       INACTIVE", text)
         self.assertIn("start        ", text)
 
+    def test_manual_start_uses_runuser_when_available(self):
+        from kiloframe import cli
+
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            config = root / "config"
+            runtime = root / "run"
+            config.mkdir()
+            runtime.mkdir()
+            (runtime / "kiloframe.sock").touch()
+            settings = SimpleNamespace(config_dir=config, runtime_dir=runtime, socket_path=runtime / "kiloframe.sock", log_dir=root / "log")
+            with patch("kiloframe.cli.os.geteuid", return_value=0), \
+                 patch("kiloframe.cli._manual_daemon_pid", side_effect=[None, 42]), \
+                 patch("kiloframe.cli.shutil.which", side_effect=lambda name: "/usr/bin/runuser" if name == "runuser" else "/usr/bin/python3"), \
+                 patch("kiloframe.cli.subprocess.Popen") as popen, \
+                 patch("kiloframe.cli.time.sleep"):
+                self.assertEqual(cli._manual_service_action("start", settings), 0)
+            command = popen.call_args.args[0]
+            self.assertEqual(command[:4], ["runuser", "-u", config.owner(), "--"])
+            self.assertIn("kiloframe.daemon", command)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -66,6 +66,11 @@ configuration and SQLite data, starts the daemon, and prints live status. It als
 installs the self-contained `kiloframe uninstall` command. It does not download an
 Ollama model.
 
+On a host running systemd, the installer enables `kiloframe.service` for the
+`multi-user.target`, so the daemon starts again after shutdown or reboot. The service
+keeps its SQLite data and configuration outside `/run`; only the PID and RPC socket are
+recreated at each boot. Use `sudo kiloframe start|stop|restart` for lifecycle control.
+
 To install a checked-out tree:
 
 ```bash
@@ -184,6 +189,11 @@ sudo kiloframe uninstall
 `status` distinguishes daemon state, endpoint reachability, model selection, and loaded
 state. `doctor` checks installation paths, the socket, database, Ollama API, model, and
 resources. On a non-systemd host, the same wrapper controls the detached daemon.
+
+If `sudo kiloframe start` is needed on a non-systemd host, it starts the daemon as the
+dedicated `kiloframe` account with the installed Python runtime. On systemd hosts the
+same command delegates to systemd. Non-systemd machines need an external boot supervisor
+if the daemon must return after a reboot.
 
 `sudo kiloframe uninstall` is the supported removal workflow. It works from any
 directory and removes the service, application, managed configuration/data, and wrapper.

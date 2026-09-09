@@ -7,6 +7,8 @@ class InstallationTests(unittest.TestCase):
         unit = (Path(__file__).parents[1] / "systemd" / "kiloframe.service").read_text()
         self.assertIn("kiloframe.daemon", unit)
         self.assertIn("Restart=on-failure", unit)
+        self.assertIn("StartLimitIntervalSec=0", unit)
+        self.assertIn("KillMode=mixed", unit)
 
     def test_service_is_enabled_for_boot(self):
         install = (Path(__file__).parents[1] / "scripts" / "install.sh").read_text()

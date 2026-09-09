@@ -13,8 +13,10 @@ Environment=PYTHONUNBUFFERED=1
 ExecStart=/usr/bin/python3 -m kiloframe.daemon
 Restart=on-failure
 RestartSec=5
+StartLimitIntervalSec=0
 TimeoutStartSec=120
 TimeoutStopSec=60
+KillMode=mixed
 RuntimeDirectory=kiloframe
 RuntimeDirectoryMode=0750
 StateDirectory=kiloframe
