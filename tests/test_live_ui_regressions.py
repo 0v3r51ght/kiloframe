@@ -115,6 +115,17 @@ class LiveUI(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(tops), 2)
         self.assertEqual({len(line) for line in tops + bottoms}, {54})
 
+    def test_sir_and_kilo_boxes_have_no_blank_row_between_them(self):
+        app = KiloApp(Client())
+        app._enqueue("Sir's request")
+        app._open_box()
+        app._stream_boxed("Kilo's reply")
+        app._flush_boxed()
+        app._append(app._rule() + "\n")
+        rows = app.output.buffer.document.lines
+        sir_bottom = next(i for i, row in enumerate(rows) if row.startswith("╰"))
+        self.assertTrue(rows[sir_bottom + 1].startswith("╭─ Kilo"))
+
     async def test_rendered_box_leaves_textarea_edge_cell_free(self):
         """A physical row at Window width soft-wraps into a blank rail-breaking row."""
         with create_pipe_input() as pipe:

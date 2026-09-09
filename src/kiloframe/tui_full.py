@@ -718,7 +718,7 @@ class KiloApp:
     def _enqueue(self, text: str, provider: str | None = None) -> None:
         self._follow_output = True
         inner = max(1, self._cw() - 3)
-        self._append("\n" + self._rule("Sir") + "\n")
+        self._begin_box("Sir")
         for para in text.split("\n"):
             if not para:
                 self._bline("")
@@ -788,7 +788,7 @@ class KiloApp:
 
     def _command_panel(self, title: str, lines: list[str]) -> None:
         """Keep command feedback readable instead of adding loose transcript text."""
-        self._append("\n" + self._rule(title) + "\n")
+        self._begin_box(title)
         inner = max(1, self._cw() - 3)
         for line in lines:
             text = line or ""
@@ -2042,10 +2042,20 @@ class KiloApp:
         never floating under the owner's input box."""
         if self._answered:
             return
-        self._append("\n" + self._rule("Kilo") + "\n")
+        self._begin_box("Kilo")
         self._answered = True
         self._work_split = False
         self._line_buf = ""
+
+    def _begin_box(self, label: str) -> None:
+        """Start a box immediately after the preceding transcript row.
+
+        A closed Sir box already ends with a newline. Prefixing the Kilo box with a
+        second newline left an empty full-width gap between every request and reply.
+        """
+        if self.output.buffer.text and not self.output.buffer.text.endswith("\n"):
+            self._append("\n")
+        self._append(self._rule(label) + "\n")
 
     def _short_model(self) -> str:
         """A compact model label for the status bar so long ids never crowd it."""
