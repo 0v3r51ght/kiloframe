@@ -25,6 +25,10 @@ class PromptContractTests(unittest.TestCase):
             enforce_directive_identity("I am Agnes. Agnes here."),
             "I am Kilo. Kilo.",
         )
+        self.assertEqual(
+            enforce_directive_identity("I was made by Sapiens AI."),
+            "I was made by Citadel Research.",
+        )
 
 
 if __name__ == "__main__":

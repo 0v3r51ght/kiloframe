@@ -85,6 +85,10 @@ Ollama endpoint. They never silently fall back to a cloud provider. Set or inspe
 token and allow-list with the Telegram CLI commands above; a chat must send `/start` before
 normal messages are accepted.
 
+Cloud `/models` results include inline selection buttons. Ollama load and unload controls
+appear only while the chat is on the local route, because cloud models have no local
+residency state.
+
 ## TUI slash commands
 
 Slash-command completion appears while typing. Interactive commands show menus and accept

@@ -305,6 +305,61 @@ class TelegramCommandTests(IsolatedAsyncioTestCase):
             self.assertTrue(await bridge._command("secret", 42, "/local_ps"))
             self.assertIn("local-model:4b", sent[0])
 
+    async def test_cloud_menu_hides_local_model_residency_controls(self):
+        with tempfile.TemporaryDirectory() as raw:
+            bridge = self._bridge(raw)
+            bridge._chat_providers[42] = "agnes"
+            with patch.object(TelegramBridge, "_call", return_value={"ok": True}) as call:
+                await bridge.send("secret", 42, "cloud", bridge.MENU)
+            payload = call.call_args.args[2]
+            markup = json.loads(payload["reply_markup"])
+            callbacks = [button["callback_data"] for row in markup["inline_keyboard"] for button in row]
+            labels = [button["text"] for row in markup["inline_keyboard"] for button in row]
+            self.assertIn("models", callbacks)
+            self.assertIn("model", callbacks)
+            self.assertNotIn("local_load", callbacks)
+            self.assertNotIn("local_unload", callbacks)
+            self.assertNotIn("Load local", " ".join(labels))
+            self.assertNotIn("Unload local", " ".join(labels))
+
+    async def test_local_menu_keeps_model_residency_controls(self):
+        with tempfile.TemporaryDirectory() as raw:
+            bridge = self._bridge(raw)
+            with patch.object(TelegramBridge, "_call", return_value={"ok": True}) as call:
+                await bridge.send("secret", 42, "local", bridge.MENU)
+            payload = call.call_args.args[2]
+            markup = json.loads(payload["reply_markup"])
+            callbacks = [button["callback_data"] for row in markup["inline_keyboard"] for button in row]
+            self.assertIn("local_load", callbacks)
+            self.assertIn("local_unload", callbacks)
+
+    async def test_cloud_model_button_persists_to_cloud_provider(self):
+        class Providers:
+            def list_models(self, name, only_free=False):
+                return ["agnes-2.5-flash", "agnes-3.0-flash"]
+
+            def set_model(self, name, model):
+                self.selected = (name, model)
+                return model
+
+        providers = Providers()
+        agent = SimpleNamespace(providers=providers)
+        with tempfile.TemporaryDirectory() as raw:
+            bridge = TelegramBridge(_config(raw, {"token": "secret", "allowed_chat_ids": [42]}), agent)
+            bridge._chat_providers[42] = "agnes"
+            delivered = []
+
+            async def capture(token, chat_id, text, keyboard=None):
+                delivered.append((text, keyboard))
+
+            bridge.send = capture  # type: ignore[method-assign]
+            self.assertTrue(await bridge._command("secret", 42, "/models"))
+            keyboard = delivered[-1][1]
+            self.assertEqual(keyboard["inline_keyboard"][1][0]["callback_data"], "cloudmodel:1")
+            self.assertTrue(await bridge._command("secret", 42, "cloudmodel:1"))
+            self.assertEqual(providers.selected, ("agnes", "agnes-3.0-flash"))
+            self.assertIn("agnes-3.0-flash", delivered[-1][0])
+
 
 class TelegramConcurrencyTests(IsolatedAsyncioTestCase):
     async def test_cancel_stops_only_this_chats_active_work(self):

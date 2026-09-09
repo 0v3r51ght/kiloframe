@@ -106,7 +106,9 @@ KNOWN_PROVIDERS: dict[str, dict[str, str]] = {
     # KILOFRAME_CLOUDFLARE_ACCOUNT_ID; a raw providers.json may also set its own URL.
     "cloudflare": {"label": "Cloudflare Workers AI", "base_url": "https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/v1", "model": "@cf/meta/llama-3.1-8b-instruct"},
     "ollama": {"label": "Ollama Cloud", "base_url": "https://ollama.com/v1", "model": "gpt-oss:120b"},
-    "agnes": {"label": "Agnes AI", "base_url": "https://apihub.agnes-ai.com/v1", "model": "agnes-2.0-flash"},
+    # Agnes currently rate-limits the 2.0 alias and its 3.0 endpoint can stall on
+    # some accounts; 2.5 is the responsive text model returned by /models.
+    "agnes": {"label": "Agnes AI", "base_url": "https://apihub.agnes-ai.com/v1", "model": "agnes-2.5-flash"},
     "modelscope": {"label": "ModelScope", "base_url": "https://api-inference.modelscope.cn/v1", "model": "Qwen/Qwen3-32B"},
     "llm7": {"label": "LLM7.io", "base_url": "https://api.llm7.io/v1", "model": "fast"},
     "opencode_zen": {"label": "OpenCode Zen", "base_url": "https://opencode.ai/zen/v1", "model": "big-pickle"},

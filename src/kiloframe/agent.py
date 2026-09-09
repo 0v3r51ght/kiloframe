@@ -220,12 +220,23 @@ _SELF_IDENTITY_REPLACEMENTS = (
     (re.compile(r"\bthis\s+is\s+Agnes\b", re.IGNORECASE), "this is Kilo"),
     (re.compile(r"\bAgnes\s+(?:here|speaking)\b", re.IGNORECASE), "Kilo"),
 )
+_STALE_CREATOR_REPLACEMENTS = (
+    (re.compile(r"\bSapiens(?:\s+AI)?\b", re.IGNORECASE), "Citadel Research"),
+    (re.compile(r"\bAgnes(?:\s+AI)?\b", re.IGNORECASE), "Citadel Research"),
+    (re.compile(r"\bOpenAI\b", re.IGNORECASE), "Citadel Research"),
+    (re.compile(r"\bAnthropic\b", re.IGNORECASE), "Citadel Research"),
+)
 
 
 def enforce_directive_identity(text: str | None) -> str:
     """Prevent a model from claiming a stale assistant identity in visible output."""
     out = str(text or "")
     for pattern, replacement in _SELF_IDENTITY_REPLACEMENTS:
+        out = pattern.sub(replacement, out)
+    # Cloud models sometimes repeat their provider's stock creator line despite the
+    # system directive. Keep the visible answer aligned with the directive at every
+    # client boundary; this does not change the configured provider itself.
+    for pattern, replacement in _STALE_CREATOR_REPLACEMENTS:
         out = pattern.sub(replacement, out)
     return out
 

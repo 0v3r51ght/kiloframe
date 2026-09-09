@@ -60,9 +60,9 @@ configured Ollama endpoint, `/cloud` selects an explicitly configured provider, 
 | `/local` | select the local Ollama route |
 | `/local_models` | list models downloaded on the active Ollama endpoint |
 | `/local_ps` | list models currently loaded by Ollama |
-| `/local_load [MODEL]` | preload a downloaded model |
-| `/local_unload [MODEL]` | unload a loaded model |
-| `/model MODEL_OR_NUMBER` | select a model on the active route |
+| `/local_load [MODEL]` | preload a downloaded model (local route only) |
+| `/local_unload [MODEL]` | unload a loaded model (local route only) |
+| `/model MODEL_OR_NUMBER` | select a model on the active route (cloud `/models` also provides buttons) |
 | `/cloud` / `/switch` | select or toggle the configured cloud route |
 | `/models` | list models on the active route |
 | `/tools` | show tools available to the bot |

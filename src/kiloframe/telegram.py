@@ -40,6 +40,10 @@ class TelegramBridge:
         self._sessions: dict[int, str] = {}
         self._fresh: set[int] = set()
         self._chat_providers: dict[int, str] = {}
+        # Short-lived model choices backing Telegram inline callbacks. The callback
+        # contains only an index (Telegram caps callback_data at 64 bytes), while the
+        # actual provider model stays server-side in this process.
+        self._cloud_model_choices: dict[int, list[str]] = {}
         self._chat_profiles: dict[int, str] = {}
         self._approval_waiters: dict[tuple[int, str], asyncio.Future[bool]] = {}
 
@@ -187,9 +191,19 @@ class TelegramBridge:
                     cloud = chat_id in self._chat_providers
                     keyboard["inline_keyboard"][1][0]["text"] = "🏠 Local" + (" ✓" if not cloud else "")
                     keyboard["inline_keyboard"][1][1]["text"] = "☁️ Cloud" + (" ✓" if cloud else "")
-                    keyboard["inline_keyboard"][2][0]["text"] = "🧠 Cloud models" if cloud else "📦 Ollama models"
-                    keyboard["inline_keyboard"][3][0]["text"] = "☁️ Select cloud" if cloud else "▶ Load local"
-                    keyboard["inline_keyboard"][3][1]["text"] = "⏏ Unload local"
+                    if cloud:
+                        # Model residency is an Ollama concern. Never show load/unload
+                        # controls while a chat is routed to a cloud provider; those old
+                        # buttons had local callback data and made cloud switching fail.
+                        keyboard["inline_keyboard"][2] = [
+                            {"text": "🧠 Cloud models", "callback_data": "models"},
+                            {"text": "🎯 Select cloud", "callback_data": "model"},
+                        ]
+                        keyboard["inline_keyboard"].pop(3)
+                    else:
+                        keyboard["inline_keyboard"][2][0]["text"] = "📦 Ollama models"
+                        keyboard["inline_keyboard"][3][0]["text"] = "▶ Load local"
+                        keyboard["inline_keyboard"][3][1]["text"] = "⏏ Unload local"
                 data["reply_markup"] = keyboard
             await asyncio.to_thread(self._call, token, "sendMessage", data)
 
@@ -607,6 +621,31 @@ class TelegramBridge:
         name = head.split("@", 1)[0].lower()
         argument = argument.strip()
 
+        if name.startswith("cloudmodel:"):
+            # Inline cloud model selection must never fall through to local Ollama
+            # handling. Resolve the per-chat index and persist it through the provider
+            # registry, then return to the cloud-aware menu.
+            if chat_id not in self._chat_providers:
+                await self.send(token, chat_id, "☁️ Select Cloud first, then choose a cloud model.", self.MENU)
+                return True
+            try:
+                index = int(name.split(":", 1)[1])
+                choices = self._cloud_model_choices.get(chat_id, [])
+                selected = choices[index]
+                provider_name = self._chat_providers[chat_id]
+                selected = self.agent.providers.set_model(provider_name, selected)
+                await self.send(
+                    token,
+                    chat_id,
+                    f"☁️ <b>Cloud model selected</b>\n<code>{html.escape(selected)}</code>",
+                    self.MENU,
+                )
+            except (ValueError, IndexError, KeyError) as exc:
+                await self.send(token, chat_id, "⚠️ That cloud model choice expired; press Cloud models again.", self.MENU)
+            except Exception as exc:
+                await self.send(token, chat_id, "⚠️ " + html.escape(str(exc)), self.MENU)
+            return True
+
         if name == "start":
             lines = [
                 "🤖 <b>KiloFrame</b> · Developed by Citadel Research",
@@ -737,6 +776,7 @@ class TelegramBridge:
             return True
         if name in {"models", "model"}:
             try:
+                model_keyboard = None
                 provider_name = self._chat_providers.get(chat_id)
                 if provider_name:
                     if name == "models":
@@ -766,12 +806,22 @@ class TelegramBridge:
                     lines.extend("• <code>" + html.escape(model) + "</code>" for model in models[:30])
                     if not models:
                         lines.append("No downloaded models found. Pull one using kiloframe local pull on the host.")
-                    lines.append("Select with <code>/model MODEL_ID</code>.")
+                    lines.append("Select with a button below or <code>/model MODEL_ID</code>.")
+                    model_keyboard = None
+                    if provider_name:
+                        choices = [str(model) for model in models[:20]]
+                        self._cloud_model_choices[chat_id] = choices
+                        model_keyboard = {
+                            "inline_keyboard": [
+                                [{"text": model[:48], "callback_data": f"cloudmodel:{index}"}]
+                                for index, model in enumerate(choices)
+                            ]
+                        }
                 else:
                     lines = ["🧠 <b>" + html.escape(route) + "</b>", "<code>" + html.escape(selected or "No model selected") + "</code>"]
                     if argument and not provider_name:
                         lines.append("This updates the shared Ollama model for KiloFrame's local route.")
-                await self.send(token, chat_id, "\n".join(lines), self.MENU)
+                await self.send(token, chat_id, "\n".join(lines), model_keyboard or self.MENU)
             except Exception as exc:
                 await self.send(token, chat_id, "⚠️ " + html.escape(str(exc)), self.MENU)
             return True
