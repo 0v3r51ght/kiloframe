@@ -64,6 +64,28 @@ class LiveUI(unittest.IsolatedAsyncioTestCase):
                 app.app.exit()
                 await runner
 
+    async def test_boxed_reply_tracks_allocated_output_width(self):
+        """A resized/split TUI must keep borders inside the output pane."""
+        with create_pipe_input() as pipe:
+            app = KiloApp(Client())
+            app.app = Application(layout=app.layout, input=pipe, output=DummyOutput(),
+                                  full_screen=True)
+            runner = asyncio.create_task(app.app.run_async())
+            try:
+                await asyncio.sleep(.1)
+                width = app.output.window.render_info.window_width
+                app._open_box()
+                app._stream_boxed("word " * 200)
+                app._flush_boxed()
+                lines = app.output.buffer.document.lines
+                self.assertTrue(lines)
+                self.assertLessEqual(max(len(line) for line in lines), width)
+                self.assertTrue(all(line.startswith("│ ") or line.startswith(("╭", "╰", "│"))
+                                    or len(line) <= width for line in lines))
+            finally:
+                app.app.exit()
+                await runner
+
     async def test_cloud_state_is_independent_of_ollama_and_poll_uses_selected_provider(self):
         app = KiloApp(Client())
         app.status = {"healthy": False}

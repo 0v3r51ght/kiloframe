@@ -324,6 +324,14 @@ class KiloApp:
         self._build_layout()
 
     def _cw(self) -> int:
+        # Use the width prompt_toolkit actually allocated to the output window.
+        # ``shutil.get_terminal_size`` can describe the parent shell rather than
+        # the current split layout (especially after a resize or through SSH),
+        # which previously let boxed replies extend into the sidebar.
+        info = getattr(self.output.window, "render_info", None)
+        rendered_width = getattr(info, "window_width", 0) if info else 0
+        if rendered_width:
+            return max(20, rendered_width)
         try:
             cols = shutil.get_terminal_size((80, 24)).columns
         except Exception:
