@@ -312,7 +312,9 @@ class TelegramCommandTests(IsolatedAsyncioTestCase):
             with patch.object(TelegramBridge, "_call", return_value={"ok": True}) as call:
                 await bridge.send("secret", 42, "cloud", bridge.MENU)
             payload = call.call_args.args[2]
-            markup = json.loads(payload["reply_markup"])
+            markup = payload["reply_markup"]
+            if isinstance(markup, str):
+                markup = json.loads(markup)
             callbacks = [button["callback_data"] for row in markup["inline_keyboard"] for button in row]
             labels = [button["text"] for row in markup["inline_keyboard"] for button in row]
             self.assertIn("models", callbacks)
@@ -328,7 +330,9 @@ class TelegramCommandTests(IsolatedAsyncioTestCase):
             with patch.object(TelegramBridge, "_call", return_value={"ok": True}) as call:
                 await bridge.send("secret", 42, "local", bridge.MENU)
             payload = call.call_args.args[2]
-            markup = json.loads(payload["reply_markup"])
+            markup = payload["reply_markup"]
+            if isinstance(markup, str):
+                markup = json.loads(markup)
             callbacks = [button["callback_data"] for row in markup["inline_keyboard"] for button in row]
             self.assertIn("local_load", callbacks)
             self.assertIn("local_unload", callbacks)
