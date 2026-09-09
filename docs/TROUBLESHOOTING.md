@@ -151,6 +151,12 @@ KiloFrame records that chat ID and activates the chat immediately. Ordinary mess
 that has not sent `/start` are ignored. Check `kiloframe logs -n 200` for the enrollment line and
 `sudo kiloframe telegram status` for activated chat IDs.
 
+If a Telegram conversation appears without the required `Sir` address, update KiloFrame and
+restart the daemon. The bridge enforces the final message boundary for both routes, so a
+normal completed answer must begin `Sir, ` and end `, Sir.`. Verify the active route with
+`/status`; use `/local_models`, `/local_ps`, `/local_load`, and `/local_unload` to inspect or
+control Ollama without switching to cloud.
+
 ## Configuration damaged or invalid
 
 Back up before changing anything:

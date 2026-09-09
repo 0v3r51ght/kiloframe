@@ -47,6 +47,31 @@ Model selection is stored per endpoint. It does not download or load the model. 
 
 Telegram is optional. Do not place tokens in source files or documentation.
 
+### Telegram bot commands
+
+The bot uses the same daemon and explicit route boundary as the TUI. `/local` selects the
+configured Ollama endpoint, `/cloud` selects an explicitly configured provider, and
+`/switch` toggles between them. The local model controls never silently fall back to cloud:
+
+| Command | Effect |
+|---|---|
+| `/start`, `/help` | activate a chat or show the current guide |
+| `/status` | show daemon, route, model, and live Ollama state |
+| `/local` | select the local Ollama route |
+| `/local_models` | list models downloaded on the active Ollama endpoint |
+| `/local_ps` | list models currently loaded by Ollama |
+| `/local_load [MODEL]` | preload a downloaded model |
+| `/local_unload [MODEL]` | unload a loaded model |
+| `/model MODEL_OR_NUMBER` | select a model on the active route |
+| `/cloud` / `/switch` | select or toggle the configured cloud route |
+| `/models` | list models on the active route |
+| `/tools` | show tools available to the bot |
+| `/cancel` / `/new` | cancel active work or start a fresh session |
+
+Every completed natural-language bot reply is normalized to `Sir, ... , Sir.` for both
+local and cloud responses. Help, status, progress, and approval messages are operational
+control cards and use concise UI text.
+
 ## Full-TUI slash commands
 
 ### Help and lifecycle
