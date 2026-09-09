@@ -86,6 +86,15 @@ class LiveUI(unittest.IsolatedAsyncioTestCase):
                 app.app.exit()
                 await runner
 
+    def test_input_and_reply_use_one_box_width(self):
+        app = KiloApp(Client())
+        app._enqueue("Sir's input should keep the same width")
+        input_lines = [line for line in app.output.buffer.document.lines if line.startswith("╭─ Sir")]
+        app._open_box()
+        reply_lines = [line for line in app.output.buffer.document.lines if line.startswith("╭─ Kilo")]
+        self.assertTrue(input_lines and reply_lines)
+        self.assertEqual(len(input_lines[0]), len(reply_lines[0]))
+
     async def test_cloud_state_is_independent_of_ollama_and_poll_uses_selected_provider(self):
         app = KiloApp(Client())
         app.status = {"healthy": False}

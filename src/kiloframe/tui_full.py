@@ -298,6 +298,7 @@ class KiloApp:
         self._choice_index = 0
         self._follow_output = True
         self._preview_start: int | None = None
+        self._box_width: int | None = None
         self._cloud_state = "configured · awaiting request"
         self._catalog: dict[str, Any] = {}
         self._cloud_options: list[tuple[str, dict[str, Any]]] = []
@@ -328,17 +329,21 @@ class KiloApp:
         # ``shutil.get_terminal_size`` can describe the parent shell rather than
         # the current split layout (especially after a resize or through SSH),
         # which previously let boxed replies extend into the sidebar.
+        if self._box_width is not None:
+            return self._box_width
         info = getattr(self.output.window, "render_info", None)
         rendered_width = getattr(info, "window_width", 0) if info else 0
         if rendered_width:
-            return max(20, rendered_width)
+            self._box_width = max(20, rendered_width)
+            return self._box_width
         try:
             cols = shutil.get_terminal_size((80, 24)).columns
         except Exception:
             cols = 80
         if self.show_panel and cols >= 88:
             cols -= 31
-        return max(20, cols - 2)
+        self._box_width = max(20, cols - 2)
+        return self._box_width
 
     def _rule(self, label: str = "") -> str:
         w = self._cw()
