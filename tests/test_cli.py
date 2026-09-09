@@ -6,10 +6,29 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from kiloframe.cli import print_status, runtime_summary, show_logs
+from kiloframe.cli import build_parser, print_status, runtime_summary, show_logs, uninstall_command
 
 
 class CLITests(unittest.TestCase):
+    def test_uninstall_is_a_top_level_command(self):
+        args = build_parser().parse_args(["uninstall"])
+        self.assertEqual(args.command, "uninstall")
+
+    def test_local_load_is_a_supported_cli_command(self):
+        args = build_parser().parse_args(["local", "load"])
+        self.assertEqual(args.command, "local")
+        self.assertEqual(args.local_command, "load")
+        self.assertIsNone(args.model)
+
+    def test_uninstall_delegates_to_installed_helper(self):
+        with patch("kiloframe.cli.os.geteuid", return_value=0), \
+             patch("kiloframe.cli.UNINSTALLER_PATH") as helper, \
+             patch("kiloframe.cli.subprocess.run") as run:
+            helper.is_file.return_value = True
+            run.return_value.returncode = 0
+            self.assertEqual(uninstall_command(), 0)
+            run.assert_called_once_with(["bash", str(helper)], check=False)
+
     def test_non_systemd_logs_read_the_real_daemon_log(self):
         with tempfile.TemporaryDirectory() as raw:
             log_dir = Path(raw)

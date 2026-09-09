@@ -62,4 +62,4 @@ Back up while preserving ownership and permissions:
 sudo cp -a /var/lib/kiloframe /var/lib/kiloframe.backup
 ```
 
-The uninstaller removes this data. Reinstallation without uninstall preserves it.
+`sudo kiloframe uninstall` removes this data. Reinstallation without uninstall preserves it.

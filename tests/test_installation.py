@@ -98,6 +98,12 @@ class InstallationTests(unittest.TestCase):
         self.assertTrue(wrapper.startswith("#!/usr/bin/env bash"))
         self.assertIn("kiloframe.cli", wrapper)
 
+    def test_installer_installs_self_contained_uninstaller(self):
+        install = (Path(__file__).parents[1] / "scripts" / "install.sh").read_text()
+        uninstall = (Path(__file__).parents[1] / "scripts" / "uninstall.sh").read_text()
+        self.assertIn("/usr/local/libexec/kiloframe-uninstall", install)
+        self.assertIn("/usr/local/libexec/kiloframe-uninstall", uninstall)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -41,9 +41,10 @@ The installer is repeatable and preserves existing operator configuration. It:
 3. installs application code under `/opt/kiloframe/app`;
 4. creates protected configuration, data, log, and runtime paths;
 5. installs `/usr/local/bin/kiloframe`;
-6. installs and enables the systemd unit when systemd is operational;
-7. provisions Superpowers, Serena, Context7, and Playwright CLI;
-8. writes the preconfigured MCP registry on a first install.
+6. installs `/usr/local/libexec/kiloframe-uninstall`, used by `sudo kiloframe uninstall`;
+7. installs and enables the systemd unit when systemd is operational;
+8. provisions Superpowers, Serena, Context7, and Playwright CLI;
+9. writes the preconfigured MCP registry on a first install.
 
 Exa is installed and its MCP entry is disabled until configured. GitHub MCP and
 Firecrawl are optional disabled entries. Their credentials are not required for core
@@ -139,18 +140,19 @@ instead of a moving branch before executing it.
 
 ## Uninstall
 
-The uninstaller is provided by a checkout:
+Use the installed command from any directory:
 
 ```bash
-git clone https://github.com/0v3r51ght/kiloframe
-cd kiloframe
-sudo ./scripts/uninstall.sh
+sudo kiloframe uninstall
 ```
 
-It stops KiloFrame, removes the service unit, application, configuration, runtime data,
-logs, command wrapper, and the default service account. It does not remove system-wide
+This stops KiloFrame, removes the service unit, application, configuration, runtime data,
+logs, command wrapper, installed uninstaller, and the default service account. It does not remove system-wide
 packages installed through the host package manager or global integration packages that
 may be shared with other applications.
+
+The checkout script `scripts/uninstall.sh` remains available for maintainer recovery when
+the installed wrapper is unavailable.
 
 Back up `/etc/kiloframe` and `/var/lib/kiloframe` before uninstalling if configuration or
 conversation history must be retained.

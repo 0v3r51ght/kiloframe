@@ -15,6 +15,7 @@
 | `kiloframe start` | start the daemon |
 | `kiloframe stop` | stop the daemon |
 | `kiloframe restart` | stop and start the daemon |
+| `sudo kiloframe uninstall` | stop the daemon and remove KiloFrame and managed data |
 | `kiloframe benchmark [--prompt TEXT]` | time a real streamed inference |
 
 ## Ollama shell commands

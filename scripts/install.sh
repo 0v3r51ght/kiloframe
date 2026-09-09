@@ -116,6 +116,8 @@ chown -R root:root /opt/kiloframe/app
 find /opt/kiloframe/app -type d -exec chmod 0755 {} +
 find /opt/kiloframe/app -type f -exec chmod 0644 {} +
 install -m 0755 "$ROOT/scripts/kiloframe-wrapper" /usr/local/bin/kiloframe
+install -d -m 0755 /usr/local/libexec
+install -m 0755 "$ROOT/scripts/uninstall.sh" /usr/local/libexec/kiloframe-uninstall
 sed -e "s/^User=.*/User=$KILO_USER/" -e "s/^Group=.*/Group=$KILO_GROUP/" \
     -e "s|^ExecStart=.*|ExecStart=$PYTHON_BIN -m kiloframe.daemon|" \
     "$ROOT/systemd/kiloframe.service" > /etc/systemd/system/kiloframe.service

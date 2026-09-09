@@ -29,7 +29,7 @@ kiloframe status
 ```
 
 The installer provisions the service account, command wrapper, application, config/data
-paths, daemon unit/runtime directory, and required integrations. Existing configuration
+paths, daemon unit/runtime directory, installed uninstaller, and required integrations. Existing configuration
 and SQLite data are preserved on reinstall. It starts the rootless `kiloframe` daemon on
 both systemd and non-systemd hosts. Open a new login session after installation if the
 installer added your account to the `kiloframe` group; ordinary operation is then simply
@@ -91,15 +91,18 @@ A named release and its published digest are more reproducible than a moving bra
 
 ## Uninstall
 
-From a checkout:
+Use the installed command from any directory:
 
 ```bash
-sudo ./scripts/uninstall.sh
+sudo kiloframe uninstall
 ```
 
 The script stops the daemon first, removes the unit, application, configuration, runtime
-data, logs, wrapper, and default service account. It refuses an unsafe non-systemd removal
+data, logs, wrapper, installed uninstaller, and default service account. It refuses an unsafe non-systemd removal
 if a running PID is present but the control wrapper is missing.
+
+The repository script `scripts/uninstall.sh` remains available for maintainer recovery when
+the installed wrapper is unavailable.
 
 Uninstall is destructive to `/etc/kiloframe` and `/var/lib/kiloframe`. Back them up first
 if endpoints, keys, sessions, learned facts, skills, or audits must survive. Shared

@@ -49,5 +49,6 @@ rm -rf /var/log/kiloframe
 
 echo "Removing kiloframe command from PATH..."
 rm -f /usr/local/bin/kiloframe
+rm -f /usr/local/libexec/kiloframe-uninstall
 
 echo "KiloFrame has been uninstalled."

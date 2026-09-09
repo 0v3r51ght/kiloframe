@@ -172,5 +172,6 @@ installer; do not delete the whole data directory or SQLite database.
 ## Reinstall without losing conversations
 
 The installer preserves existing `/etc/kiloframe` files and `/var/lib/kiloframe`. Running
-the one-line installer again updates the application and required integrations. The
-uninstaller, by contrast, removes both paths—back them up first if they must survive.
+the one-line installer again updates the application and required integrations. To remove
+KiloFrame from any directory, run `sudo kiloframe uninstall`; it removes both paths, so
+back them up first if they must survive.

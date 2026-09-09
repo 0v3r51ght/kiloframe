@@ -27,6 +27,7 @@ the persisted configured cloud provider even after reopening KiloFrame; the next
 | `kiloframe version` | application/runtime version information |
 | `kiloframe logs -n 100` | recent systemd or detached-daemon log |
 | `sudo kiloframe start`, `stop`, `restart` | daemon lifecycle; normal use is `kiloframe` |
+| `sudo kiloframe uninstall` | stop the daemon and remove KiloFrame and managed data |
 | `kiloframe benchmark` | time a real short inference |
 
 ### Ollama CLI

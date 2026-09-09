@@ -8,6 +8,8 @@
   and the local-only Ollama load and unload controls.
 - Replaced obsolete setup descriptions with verified installation, operations, security,
   troubleshooting, and testing workflows.
+- Added the self-contained `sudo kiloframe uninstall` command so removal works from any
+  directory, and completed the missing `kiloframe local load` CLI operation.
 - Current verification covers 205 automated tests plus production installer and Ollama
   checks.
 

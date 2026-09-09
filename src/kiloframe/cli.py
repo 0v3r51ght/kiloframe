@@ -20,6 +20,8 @@ from .rpc import RPCClient
 from .theme import BOLD, RED
 from .tui import DIM, GREEN, RESET, YELLOW, TerminalUI
 
+UNINSTALLER_PATH = Path("/usr/local/libexec/kiloframe-uninstall")
+
 
 def json_print(value: Any) -> None:
     print(json.dumps(value, indent=2, ensure_ascii=False))
@@ -223,6 +225,19 @@ def show_logs(lines: int, settings: Settings) -> int:
     return 0
 
 
+def uninstall_command() -> int:
+    """Run the installed uninstaller without requiring a checkout directory."""
+    if os.geteuid() != 0:
+        print("Uninstall requires root. Run: sudo kiloframe uninstall", file=sys.stderr)
+        return 2
+    candidates = (UNINSTALLER_PATH, Path("/opt/kiloframe/uninstall.sh"))
+    for path in candidates:
+        if path.is_file():
+            return subprocess.run(["bash", str(path)], check=False).returncode
+    print("KiloFrame uninstaller is not installed; reinstall KiloFrame first.", file=sys.stderr)
+    return 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="kiloframe", description="KiloFrame local-first terminal AI")
     parser.add_argument("--version", action="version", version=f"KiloFrame {__version__}")
@@ -238,6 +253,7 @@ def build_parser() -> argparse.ArgumentParser:
     logs.add_argument("-n", "--lines", type=int, default=100)
     for action in ("restart", "stop", "start"):
         sub.add_parser(action, help=f"{action} the KiloFrame service")
+    sub.add_parser("uninstall", help="remove KiloFrame and its service data")
     benchmark = sub.add_parser("benchmark", help="measure a short real inference")
     benchmark.add_argument("--prompt", default="Reply with exactly: KiloFrame is ready.")
 
@@ -251,6 +267,8 @@ def build_parser() -> argparse.ArgumentParser:
     pull.add_argument("model", help="model name, e.g. llama3.2 or qwen2.5:14b")
     select = local_sub.add_parser("select", help="select the model KiloFrame uses")
     select.add_argument("model", help="model name")
+    load = local_sub.add_parser("load", help="load a model into the server's memory")
+    load.add_argument("model", nargs="?", default=None, help="model name (default: the selected model)")
     unload = local_sub.add_parser("unload", help="unload a model from the server's memory")
     unload.add_argument("model", nargs="?", default=None, help="model name (default: the selected model)")
 
@@ -419,6 +437,13 @@ async def local_command(args: argparse.Namespace, client: RPCClient) -> int:
             else:
                 print(f"{YELLOW}{data.get('error', 'could not select model')}{RESET}")
                 return 1
+        elif action == "load":
+            data = await client.request("ollama_load", model=args.model or "")
+            if data.get("ok"):
+                print(f"{GREEN}loaded{RESET} {data.get('model')}")
+            else:
+                print(f"{YELLOW}{data.get('error', 'could not load')}{RESET}")
+                return 1
         elif action == "unload":
             data = await client.request("ollama_unload", model=args.model)
             if data.get("ok"):
@@ -565,6 +590,8 @@ def main() -> None:
     settings = Settings()
     if args.command in {"start", "stop", "restart"}:
         raise SystemExit(service_action(args.command, settings))
+    if args.command == "uninstall":
+        raise SystemExit(uninstall_command())
     if args.command == "logs":
         raise SystemExit(show_logs(args.lines, settings))
     if args.command == "telegram":

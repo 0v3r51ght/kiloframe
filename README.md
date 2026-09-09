@@ -62,8 +62,9 @@ curl -fsSL https://raw.githubusercontent.com/0v3r51ght/kiloframe/main/scripts/in
 
 The installer downloads a cache-busted source archive, installs the application and
 required integrations, creates the `kiloframe` service account, preserves existing
-configuration and SQLite data, starts the daemon, and prints live status. It does not
-download an Ollama model.
+configuration and SQLite data, starts the daemon, and prints live status. It also
+installs the self-contained `kiloframe uninstall` command. It does not download an
+Ollama model.
 
 To install a checked-out tree:
 
@@ -177,11 +178,16 @@ kiloframe resources
 kiloframe logs -n 100
 kiloframe benchmark
 sudo kiloframe restart
+sudo kiloframe uninstall
 ```
 
 `status` distinguishes daemon state, endpoint reachability, model selection, and loaded
 state. `doctor` checks installation paths, the socket, database, Ollama API, model, and
 resources. On a non-systemd host, the same wrapper controls the detached daemon.
+
+`sudo kiloframe uninstall` is the supported removal workflow. It works from any
+directory and removes the service, application, managed configuration/data, and wrapper.
+Back up `/etc/kiloframe` and `/var/lib/kiloframe` first if they must be retained.
 
 Important paths are:
 
