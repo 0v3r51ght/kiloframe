@@ -307,7 +307,7 @@ class TelegramCommandTests(IsolatedAsyncioTestCase):
 
     async def test_cloud_menu_hides_local_model_residency_controls(self):
         with tempfile.TemporaryDirectory() as raw:
-            bridge = self._bridge(raw)
+            bridge = TelegramBridge(_config(raw, {"token": "secret", "allowed_chat_ids": [42]}), object())
             bridge._chat_providers[42] = "agnes"
             with patch.object(TelegramBridge, "_call", return_value={"ok": True}) as call:
                 await bridge.send("secret", 42, "cloud", bridge.MENU)
@@ -324,7 +324,7 @@ class TelegramCommandTests(IsolatedAsyncioTestCase):
 
     async def test_local_menu_keeps_model_residency_controls(self):
         with tempfile.TemporaryDirectory() as raw:
-            bridge = self._bridge(raw)
+            bridge = TelegramBridge(_config(raw, {"token": "secret", "allowed_chat_ids": [42]}), object())
             with patch.object(TelegramBridge, "_call", return_value={"ok": True}) as call:
                 await bridge.send("secret", 42, "local", bridge.MENU)
             payload = call.call_args.args[2]
