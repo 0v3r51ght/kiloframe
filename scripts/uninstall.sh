@@ -13,6 +13,29 @@ has_systemd() {
     command -v systemctl >/dev/null 2>&1 && systemctl show-environment >/dev/null 2>&1
 }
 
+wait_for_detached_daemon() {
+    # `kiloframe stop` removes the socket promptly, but the process may still be
+    # unwinding.  Do not remove its service account while it is alive: userdel then
+    # fails silently and a reinstall can inherit a stale daemon.
+    command -v pgrep >/dev/null 2>&1 || return 0
+    for _ in $(seq 1 20); do
+        if ! pgrep -u "$KILO_USER" -f "kiloframe.daemon" >/dev/null 2>&1; then
+            return 0
+        fi
+        sleep 0.1
+    done
+    echo "Stopping remaining detached KiloFrame daemon..."
+    pkill -TERM -u "$KILO_USER" -f "kiloframe.daemon" || true
+    for _ in $(seq 1 20); do
+        if ! pgrep -u "$KILO_USER" -f "kiloframe.daemon" >/dev/null 2>&1; then
+            return 0
+        fi
+        sleep 0.1
+    done
+    echo "KiloFrame daemon did not stop; refusing unsafe removal." >&2
+    return 1
+}
+
 echo "Stopping and disabling KiloFrame service..."
 if has_systemd; then
     systemctl stop kiloframe.service || true
@@ -23,6 +46,7 @@ else
     if [[ -x /usr/local/bin/kiloframe ]]; then
         echo "Stopping the detached KiloFrame daemon..."
         /usr/local/bin/kiloframe stop
+        wait_for_detached_daemon
     elif [[ -f /run/kiloframe/kiloframe.pid ]]; then
         echo "KiloFrame is running but its control command is missing; refusing unsafe removal." >&2
         exit 1
@@ -33,7 +57,7 @@ echo "Removing KiloFrame user and groups..."
 if [[ "$KILO_USER" == "kiloframe" ]] && id "$KILO_USER" &>/dev/null; then
     echo "Removing system user: $KILO_USER"
     if command -v userdel >/dev/null; then
-        userdel -r "$KILO_USER" || true
+        userdel -r "$KILO_USER"
     elif command -v deluser >/dev/null; then
         deluser --remove-home "$KILO_USER" || true
     fi

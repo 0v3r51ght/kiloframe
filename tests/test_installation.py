@@ -28,6 +28,9 @@ class InstallationTests(unittest.TestCase):
         remove = text.index("rm -rf /opt/kiloframe")
         self.assertLess(stop, remove)
         self.assertIn("refusing unsafe removal", text)
+        self.assertIn("wait_for_detached_daemon", text)
+        self.assertIn('pkill -TERM -u "$KILO_USER" -f "kiloframe.daemon"', text)
+        self.assertNotIn('userdel -r "$KILO_USER" || true', text)
 
     def test_installers_agree_on_the_service_account(self):
         """The unit hardcodes a user while the installers choose one. If they disagree,
