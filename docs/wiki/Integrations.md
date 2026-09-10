@@ -105,6 +105,10 @@ Messages from a chat that has not sent `/start` are ignored. Use
 
 ### Telegram route controls and directive
 
+For the TUI, use `/cloudkey` to reopen the masked provider-key picker for an already
+configured cloud provider. It is the discoverable equivalent of `/cloud key`; neither
+command prints the entered secret.
+
 The bot exposes the same local/cloud route controls as the TUI. Use `/local` to select
 Ollama, `/cloud` to select an explicitly configured provider, or `/switch` to toggle between
 them. `/local_models`, `/local_ps`, `/local_load [MODEL]`, and `/local_unload [MODEL]` query

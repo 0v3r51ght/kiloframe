@@ -131,6 +131,7 @@ are offered only where supported, and unverified cloud controls remain unavailab
 |---|---|
 | `/cloud` | open provider setup or show the active provider |
 | `/cloud key` | add or replace provider configuration |
+| `/cloudkey` | replace the API key for a configured cloud provider |
 | `/cloud` → `Custom endpoint` | configure an OpenAI-compatible HTTPS URL, model, and key |
 | `/cloud QUESTION` | use the configured provider for one request |
 | `/model` | list the active provider's reported models |

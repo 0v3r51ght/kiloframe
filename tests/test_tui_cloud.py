@@ -3,7 +3,7 @@ import asyncio
 import unittest
 
 try:
-    from kiloframe.tui_full import KiloApp
+    from kiloframe.tui_full import KiloApp, _COMMANDS
     HAVE_PTK = True
 except Exception:
     HAVE_PTK = False
@@ -30,6 +30,17 @@ class FakeClient:
 
 @unittest.skipUnless(HAVE_PTK, "prompt_toolkit not installed")
 class CloudFlowTests(unittest.IsolatedAsyncioTestCase):
+    async def test_cloudkey_is_a_discoverable_key_replacement_command(self):
+        app = KiloApp(FakeClient())
+        self.assertIn("/cloudkey", [name.strip() for name, _help in _COMMANDS])
+        self.assertTrue(app._handle_command("/cloudkey"))
+        for _ in range(10):
+            if app._pending:
+                break
+            await asyncio.sleep(0)
+        self.assertEqual(app._pending["kind"], "cloud_pick")
+        self.assertTrue(app._pending["force_key"])
+
     async def test_pick_then_key_configures_and_activates(self):
         app = KiloApp(FakeClient())
         await app._cloud_setup(pending_question=None)

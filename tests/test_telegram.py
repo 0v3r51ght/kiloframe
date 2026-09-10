@@ -207,10 +207,63 @@ class TelegramCommandTests(IsolatedAsyncioTestCase):
             )
             await asyncio.sleep(0)
             callback = delivered[0][1]["inline_keyboard"][0][0]["callback_data"]
-            self.assertTrue(bridge._resolve_approval(99, callback))
+            self.assertEqual(bridge._resolve_approval(99, callback), (True, None))
             self.assertFalse(task.done())
-            self.assertTrue(bridge._resolve_approval(42, callback))
+            self.assertEqual(bridge._resolve_approval(42, callback), (True, True))
             self.assertTrue(await task)
+
+    async def test_cloud_button_chooses_each_configured_provider_once(self):
+        class Providers:
+            def providers(self):
+                return {"alpha": object(), "beta": object()}
+
+            def resolve(self, name=None):
+                return SimpleNamespace(name=name, label=f"{name}:default")
+
+        with tempfile.TemporaryDirectory() as raw:
+            bridge = TelegramBridge(_config(raw, {"token": "secret", "allowed_chat_ids": [42]}), SimpleNamespace(providers=Providers()))
+            sent = []
+
+            async def capture(token, chat_id, text, keyboard=None):
+                sent.append((text, keyboard))
+
+            bridge.send = capture  # type: ignore[method-assign]
+            self.assertTrue(await bridge._command("secret", 42, "cloud"))
+            callbacks = [button["callback_data"] for row in sent[-1][1]["inline_keyboard"] for button in row]
+            self.assertEqual(callbacks.count("cloudprovider:0"), 1)
+            self.assertEqual(callbacks.count("cloudprovider:1"), 1)
+            self.assertTrue(await bridge._command("secret", 42, "cloudprovider:1"))
+            self.assertEqual(bridge._chat_providers[42], "beta")
+
+    async def test_two_approval_cards_resume_one_reply(self):
+        class Agent:
+            def run(self, *args, **kwargs):
+                async def generate():
+                    approve = kwargs["permission_callback"]
+                    if not await approve("terminal.execute.write", "first", Risk.WRITE):
+                        raise AssertionError("first approval denied")
+                    if not await approve("filesystem.write", "second", Risk.WRITE):
+                        raise AssertionError("second approval denied")
+                    yield {"type": "token", "text": "both actions completed"}
+                return generate()
+
+        with tempfile.TemporaryDirectory() as raw:
+            bridge = TelegramBridge(_config(raw, {"token": "secret", "allowed_chat_ids": [42]}), Agent())  # type: ignore[arg-type]
+            sent = []
+            async def capture(token, chat_id, text, keyboard=None): sent.append((text, keyboard))
+            async def noop(*args, **kwargs): return None
+            bridge.send, bridge._send_progress, bridge._edit_progress, bridge._delete, bridge._keep_typing = capture, noop, noop, noop, noop  # type: ignore[method-assign]
+            reply = asyncio.create_task(bridge._reply("secret", 42, "do both"))
+            for count in (1, 2):
+                for _ in range(20):
+                    approvals = [item for item in sent if item[1] and "Machine approval" in item[0]]
+                    if len(approvals) == count: break
+                    await asyncio.sleep(0)
+                self.assertEqual(len(approvals), count)
+                callback = approvals[-1][1]["inline_keyboard"][0][0]["callback_data"]
+                self.assertEqual(bridge._resolve_approval(42, callback), (True, True))
+            await asyncio.wait_for(reply, timeout=5)
+            self.assertTrue(any("both actions completed" in text for text, _ in sent))
 
     async def test_group_style_command_suffix_is_accepted(self):
         """In groups Telegram delivers '/status@BotName'."""
@@ -272,6 +325,7 @@ class TelegramCommandTests(IsolatedAsyncioTestCase):
             bridge._delete = capture  # type: ignore[method-assign]
             bridge._edit_progress = capture  # type: ignore[method-assign]
             self.assertTrue(await bridge._command("secret", 42, "/cloud"))
+            self.assertTrue(await bridge._command("secret", 42, "cloudprovider:0"))
             self.assertTrue(await bridge._command("secret", 42, "/agent security"))
             self.assertTrue(await bridge._command("secret", 42, "/new"))
             await bridge._reply("secret", 42, "inspect")

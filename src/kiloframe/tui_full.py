@@ -156,6 +156,7 @@ _COMMANDS = [
     ("/switch", "flip between Ollama and cloud (Ollama default)"),
     ("/private ", "on | off | rotate — mask web through Tor"),
     ("/cloud ", "set up or use a cloud model (provider picker)"),
+    ("/cloudkey", "replace the API key for a configured cloud provider"),
     ("/model ", "change the cloud model"),
     ("/chats", "list past sessions to resume"),
     ("/delete ", "delete chats you choose (n, n,m, or all)"),
@@ -909,7 +910,7 @@ class KiloApp:
                 "/agent <name>|off                   select a specialist or restore auto",
                 "/local [status|models|ps|pull|select|load|unload]",
                 "/localset [list|add|remove|default] configure Ollama servers",
-                "/switch · /cloud · /model            change route or cloud model",
+                "/switch · /cloud · /cloudkey · /model change route, key, or cloud model",
                 "/chats · /delete                     manage conversations",
                 "/private [on|off|rotate] · /cancel · /new · /clear · /quit",
                 "F2 sidebar · Ctrl-C cancel · Ctrl-Q quit · /commands full reference",
@@ -1038,6 +1039,12 @@ class KiloApp:
             return True
         if text.startswith("/cloudswitch"):
             self._spawn(self._cloud_setup(force_key=False))
+            return True
+        if text == "/cloudkey":
+            # Keep credential entry inside the existing masked provider-picker flow.
+            # This is deliberately a first-class command rather than relying on the
+            # historical /cloud key alias, which was not discoverable in completion.
+            self._spawn(self._cloud_setup(force_key=True))
             return True
         if text.startswith("/cloud"):
             rest = text[len("/cloud"):].strip()

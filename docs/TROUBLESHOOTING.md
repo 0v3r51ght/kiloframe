@@ -165,7 +165,7 @@ Back up before changing anything:
 sudo cp -a /etc/kiloframe /etc/kiloframe.backup
 ```
 
-Prefer `/localset`, `/cloud`, and Telegram management commands over hand-editing JSON.
+Prefer `/localset`, `/cloud`, `/cloudkey`, and Telegram management commands over hand-editing JSON.
 If repair requires removing a configuration file, move only that file aside and rerun the
 installer; do not delete the whole data directory or SQLite database.
 

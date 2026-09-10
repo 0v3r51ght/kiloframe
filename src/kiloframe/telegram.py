@@ -20,6 +20,14 @@ from .telegram_render import telegram_html, telegram_html_chunks
 log = logging.getLogger("kiloframe.telegram")
 
 
+class TelegramAPIError(RuntimeError):
+    """A Telegram error with the server's optional rate-limit retry delay."""
+
+    def __init__(self, description: str, retry_after: int | None = None):
+        super().__init__(description)
+        self.retry_after = retry_after
+
+
 class TelegramBridge:
     """Optional long-polling bridge; every message uses the daemon's same Agent/runtime."""
 
@@ -40,6 +48,7 @@ class TelegramBridge:
         self._sessions: dict[int, str] = {}
         self._fresh: set[int] = set()
         self._chat_providers: dict[int, str] = {}
+        self._cloud_provider_choices: dict[int, list[str]] = {}
         # Short-lived model choices backing Telegram inline callbacks. The callback
         # contains only an index (Telegram caps callback_data at 64 bytes), while the
         # actual provider model stays server-side in this process.
@@ -165,10 +174,26 @@ class TelegramBridge:
         with urllib.request.urlopen(request, timeout=timeout) as response:
             result = json.load(response)
         if not result.get("ok", False):
-            raise RuntimeError(
-                str(result.get("description") or "Telegram Bot API request failed")
+            parameters = result.get("parameters") or {}
+            retry_after = parameters.get("retry_after")
+            raise TelegramAPIError(
+                str(result.get("description") or "Telegram Bot API request failed"),
+                int(retry_after) if isinstance(retry_after, (int, float)) else None,
             )
         return result
+
+    async def _telegram_call(
+        self, token: str, method: str, data: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Retry a Telegram rate limit so control cards are not silently lost."""
+        for attempt in range(3):
+            try:
+                return await asyncio.to_thread(self._call, token, method, data)
+            except TelegramAPIError as exc:
+                if exc.retry_after is None or attempt == 2:
+                    raise
+                await asyncio.sleep(min(max(exc.retry_after, 1), 30))
+        raise AssertionError("unreachable")  # pragma: no cover
 
     async def send(
         self,
@@ -205,7 +230,7 @@ class TelegramBridge:
                         keyboard["inline_keyboard"][3][0]["text"] = "▶ Load local"
                         keyboard["inline_keyboard"][3][1]["text"] = "⏏ Unload local"
                 data["reply_markup"] = keyboard
-            await asyncio.to_thread(self._call, token, "sendMessage", data)
+            await self._telegram_call(token, "sendMessage", data)
 
     async def _request_approval(
         self,
@@ -232,35 +257,38 @@ class TelegramBridge:
                 },
             ]]
         }
-        await self.send(
-            token,
-            chat_id,
-            "⚠️ <b>Machine approval required</b>\n"
-            f"<b>Risk:</b> <code>{html.escape(risk.value)}</code>\n"
-            f"<b>Action:</b> <code>{html.escape(capability)}</code>\n"
-            f"<pre>{html.escape(detail)}</pre>\n"
-            "Approve this action once?",
-            keyboard,
-        )
         try:
+            await self.send(
+                token, chat_id,
+                "⚠️ <b>Machine approval required</b>\n"
+                f"<b>Risk:</b> <code>{html.escape(risk.value)}</code>\n"
+                f"<b>Action:</b> <code>{html.escape(capability)}</code>\n"
+                f"<pre>{html.escape(detail)}</pre>\n"
+                "Approve this action once?", keyboard,
+            )
             return await asyncio.wait_for(future, timeout=280)
         except asyncio.TimeoutError:
+            return False
+        except Exception:
+            log.exception("could not deliver Telegram approval for chat %s", chat_id)
             return False
         finally:
             self._approval_waiters.pop(key, None)
 
-    def _resolve_approval(self, chat_id: int, data: str) -> bool:
+    def _resolve_approval(self, chat_id: int, data: str) -> tuple[bool, bool | None]:
         """Resolve an approval button only for the chat that received the prompt."""
         if not data.startswith("approval:"):
-            return False
+            return False, None
         try:
             _prefix, decision, approval_id = data.split(":", 2)
         except ValueError:
-            return True
+            return True, None
         future = self._approval_waiters.get((chat_id, approval_id))
         if future is not None and not future.done():
-            future.set_result(decision == "yes")
-        return True
+            allowed = decision == "yes"
+            future.set_result(allowed)
+            return True, allowed
+        return True, None
 
     async def _send_progress(self, token: str, chat_id: int, text: str) -> int | None:
         # Progress is bounded best-effort: show the thinking indicator when Telegram
@@ -621,6 +649,15 @@ class TelegramBridge:
         name = head.split("@", 1)[0].lower()
         argument = argument.strip()
 
+        if name.startswith("cloudprovider:"):
+            try:
+                index = int(name.split(":", 1)[1])
+                provider_name = self._cloud_provider_choices[chat_id][index]
+            except (ValueError, IndexError, KeyError):
+                await self.send(token, chat_id, "⚠️ That cloud provider choice expired; press Cloud again.", self.MENU)
+                return True
+            return await self._command(token, chat_id, f"cloud {provider_name}")
+
         if name.startswith("cloudmodel:"):
             # Inline cloud model selection must never fall through to local Ollama
             # handling. Resolve the per-chat index and persist it through the provider
@@ -750,6 +787,28 @@ class TelegramBridge:
                 await self.send(
                     token, chat_id, "🏠 <b>Switched to local.</b>", self.MENU
                 )
+                return True
+            if not argument:
+                try:
+                    choices = list(self.agent.providers.providers())
+                    if not choices:
+                        raise RuntimeError("no cloud providers are configured")
+                    self._cloud_provider_choices[chat_id] = choices
+                    rows = [
+                        [{
+                            "text": ("✅ " if provider_name == self._chat_providers.get(chat_id) else "☁️ ") + provider_name,
+                            "callback_data": f"cloudprovider:{index}",
+                        }]
+                        for index, provider_name in enumerate(choices)
+                    ]
+                    rows.append([{"text": "🏠 Use local", "callback_data": "local"}])
+                    await self.send(
+                        token, chat_id,
+                        "☁️ <b>Select cloud provider</b>\n<i>Choose where this chat's next requests run.</i>",
+                        {"inline_keyboard": rows},
+                    )
+                except Exception as exc:
+                    await self.send(token, chat_id, "⚠️ " + html.escape(str(exc)), self.MENU)
                 return True
             try:
                 provider = self.agent.providers.resolve(argument or None)
@@ -980,17 +1039,26 @@ class TelegramBridge:
                                 )
                                 continue
                             callback_data = str(query.get("data", ""))
+                            handled_approval, decision = self._resolve_approval(
+                                chat_id, callback_data
+                            )
                             # Acknowledge promptly or the client shows a spinner on the button.
                             try:
                                 await asyncio.to_thread(
                                     self._call,
                                     token,
                                     "answerCallbackQuery",
-                                    {"callback_query_id": query.get("id")},
+                                    {
+                                        "callback_query_id": query.get("id"),
+                                        **(
+                                            {"text": "Approved — Kilo is continuing." if decision else "Denied — Kilo will not run it.", "cache_time": 0}
+                                            if decision is not None else {}
+                                        ),
+                                    },
                                 )
                             except Exception:
                                 pass
-                            if not self._resolve_approval(chat_id, callback_data):
+                            if not handled_approval:
                                 await self._command(token, chat_id, callback_data)
                             continue
 
