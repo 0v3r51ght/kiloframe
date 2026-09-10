@@ -16,7 +16,7 @@ from kiloframe.profiles import PROFILES
 from kiloframe.security import PermissionManager
 from kiloframe.tools import ToolRegistry
 from kiloframe.providers import Provider, ProviderRegistry, ProviderError, KNOWN_PROVIDERS
-from kiloframe.provider_protocol import anthropic_payload
+from kiloframe.provider_protocol import anthropic_payload, consolidated_system_messages
 from kiloframe.tui_full import KiloApp, _ChatLexer, _COMMANDS
 from prompt_toolkit.document import Document
 from prompt_toolkit.mouse_events import MouseEvent, MouseEventType, MouseButton
@@ -46,6 +46,18 @@ class ScriptRuntime:
 
 
 class RestorationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_cloud_protocol_consolidates_every_directive_in_order(self):
+        messages = [
+            {"role": "system", "content": CORE_DIRECTIVE},
+            {"role": "system", "content": "Telegram behavior"},
+            {"role": "user", "content": "act"},
+            {"role": "system", "content": "finish the task"},
+        ]
+        normalized = consolidated_system_messages(messages)
+        self.assertEqual([item["role"] for item in normalized], ["system", "user"])
+        self.assertTrue(normalized[0]["content"].startswith(CORE_DIRECTIVE))
+        self.assertTrue(normalized[0]["content"].endswith("finish the task"))
+
     async def test_real_command_failure_recovery_write_read_and_verify(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

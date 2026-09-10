@@ -8,6 +8,7 @@ from types import SimpleNamespace
 from unittest import IsolatedAsyncioTestCase
 from unittest.mock import patch
 
+from kiloframe.providers import KNOWN_PROVIDERS
 from kiloframe.security import Risk
 from kiloframe.telegram import TelegramBridge
 
@@ -71,7 +72,10 @@ class TelegramConfigTests(unittest.TestCase):
 class TelegramDeliveryTests(IsolatedAsyncioTestCase):
     async def test_final_telegram_answer_enforces_directive_address(self):
         class PlainAgent:
+            providers_seen = []
+
             def run(self, *args, **kwargs):
+                self.providers_seen.append(kwargs.get("provider"))
                 async def generate():
                     yield {"type": "model", "location": "cloud" if kwargs.get("provider") else "local", "label": "test"}
                     yield {"type": "token", "text": "A provider ignored the address rule."}
@@ -91,11 +95,18 @@ class TelegramDeliveryTests(IsolatedAsyncioTestCase):
             bridge._edit_progress = edit
             bridge._delete = delete
             await bridge._reply("secret", 42, "local")
-            await bridge._reply("secret", 42, "cloud")
-            self.assertEqual(len(sent), 2)
+            for provider in (*KNOWN_PROVIDERS, "custom_gateway"):
+                bridge._chat_providers[42] = provider
+                await bridge._reply("secret", 42, "cloud")
+            self.assertEqual(
+                bridge.agent.providers_seen,
+                [None, *KNOWN_PROVIDERS, "custom_gateway"],
+            )
+            self.assertEqual(len(sent), 1 + len(KNOWN_PROVIDERS) + 1)
             for answer in sent:
                 self.assertIn("Sir, A provider ignored the address rule., Sir.", answer)
                 self.assertEqual(answer.count("Sir,"), 1)
+                self.assertEqual(answer.count("Sir."), 1)
 
     async def test_reply_resets_tool_markup_and_renders_clean_research(self):
         class ResearchAgent:

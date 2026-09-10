@@ -52,6 +52,11 @@ short prompt on the local route, then `/cloud` or `/switch` and another short pr
 that both completed answers begin `Sir, ` and end `, Sir.` and that local model controls
 reflect the active Ollama server. The focused automated check is:
 
+For each configured cloud provider, also ask the same machine-action question and verify
+that Kilo keeps its identity, uses the supplied tools instead of denying access, requests
+approval for state-changing work, and resumes after approval. Provider adapters send the
+same consolidated system contract, so these expectations do not vary by endpoint.
+
 ```bash
 PYTHONPATH=src python3 -m unittest tests.test_telegram -v
 ```

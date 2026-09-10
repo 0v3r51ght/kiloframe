@@ -119,6 +119,9 @@ on the cloud route. These controls report live server state and do not imply tha
 is loaded until Ollama reports it.
 
 Every natural-language Telegram reply passes through Kilo's Core Directive for both local
-and cloud inference. The bridge also normalizes the final combined stream, which covers
-providers or models that ignore the system prompt and guarantees the visible form
-`Sir, ... , Sir.`. Progress, status, help, and approval cards are operational UI messages.
+and cloud inference. All cloud adapters consolidate Kilo's identity, environment, active
+specialist, tool contract, and follow-through instructions into one authoritative system
+block; this prevents compatible gateways from silently applying only one of several system
+messages. The bridge also normalizes the final combined stream, correcting stale provider
+identity or creator claims and guaranteeing the visible form `Sir, ... , Sir.`. Progress,
+status, help, and approval cards are operational UI messages.

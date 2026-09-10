@@ -5,10 +5,25 @@ import json
 from typing import Any
 
 
+def consolidated_system_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Give every cloud endpoint one authoritative, ordered system instruction.
+
+    Anthropic already requires this shape. Several nominally OpenAI-compatible model
+    gateways accept multiple system messages but apply only one of them, which made
+    Kilo's identity and operating rules vary by provider. Tool/user/assistant ordering
+    is preserved; only system content is consolidated at the front.
+    """
+    system = [str(message.get("content") or "") for message in messages if message.get("role") == "system"]
+    conversation = [dict(message) for message in messages if message.get("role") != "system"]
+    if not system:
+        return conversation
+    return [{"role": "system", "content": "\n\n".join(system)}, *conversation]
+
+
 def anthropic_payload(payload: dict[str, Any]) -> dict[str, Any]:
     system = []
     messages = []
-    for message in payload["messages"]:
+    for message in consolidated_system_messages(payload["messages"]):
         role = message["role"]
         if role == "system":
             system.append(str(message.get("content") or ""))

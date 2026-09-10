@@ -29,6 +29,18 @@ class PromptContractTests(unittest.TestCase):
             enforce_directive_identity("I was made by Sapiens AI."),
             "I was made by Citadel Research.",
         )
+        for reply in (
+            "I am ChatGPT.",
+            "I'm Claude.",
+            "My name is Gemini.",
+            "This is DeepSeek.",
+        ):
+            with self.subTest(reply=reply):
+                self.assertIn("Kilo", enforce_directive_identity(reply))
+        self.assertEqual(
+            enforce_directive_identity("I was trained by Google DeepMind."),
+            "I was made by Citadel Research.",
+        )
 
 
 if __name__ == "__main__":

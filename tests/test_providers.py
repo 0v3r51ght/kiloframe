@@ -1,10 +1,17 @@
 import json
+import asyncio
 import tempfile
 import unittest
 from unittest.mock import patch
 from pathlib import Path
 
-from kiloframe.providers import ProviderError, ProviderRegistry, _model_ids
+from kiloframe.providers import (
+    KNOWN_PROVIDERS,
+    Provider,
+    ProviderError,
+    ProviderRegistry,
+    _model_ids,
+)
 
 
 def _config(raw: str, payload: dict) -> Path:
@@ -74,6 +81,77 @@ class ProviderConfigTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as raw:
             path = _config(raw, {"providers": {"openrouter": {"api_key": "k", "model": "some/model"}}})
             self.assertEqual(ProviderRegistry(path).resolve().label, "openrouter:some/model")
+
+
+async def _collect(stream):
+    return [event async for event in stream]
+
+
+class ProviderDirectiveMatrixTests(unittest.IsolatedAsyncioTestCase):
+    async def test_every_builtin_and_custom_provider_gets_one_complete_system_contract(self):
+        class Response:
+            def __init__(self, anthropic=False):
+                final = (
+                    b'data: {"type":"message_stop"}\n'
+                    if anthropic
+                    else b'data: {"choices":[{"delta":{"content":"done"},"finish_reason":"stop"}]}\n'
+                )
+                self.lines = iter((final, b'data: [DONE]\n'))
+
+            def readline(self):
+                return next(self.lines, b"")
+
+            def close(self):
+                pass
+
+        messages = [
+            {"role": "system", "content": "IDENTITY: You are Kilo."},
+            {"role": "system", "content": "BEHAVIOR: Act with tools and finish."},
+            {"role": "user", "content": "Do the work."},
+            {"role": "system", "content": "REMOTE: approvals resume the same request."},
+        ]
+        providers = [
+            Provider(
+                name,
+                str(meta["base_url"]).replace("{account_id}", "account"),
+                "secret",
+                str(meta.get("model") or "live/model"),
+            )
+            for name, meta in KNOWN_PROVIDERS.items()
+        ]
+        providers.append(
+            Provider("custom_gateway", "https://example.test/v1", "secret", "model")
+        )
+        registry = ProviderRegistry(Path("/tmp/unused-provider-matrix.json"))
+
+        for provider in providers:
+            captured = []
+
+            def open_request(request, timeout=None):
+                captured.append(json.loads(request.data))
+                return Response(provider.name == "anthropic")
+
+            with self.subTest(provider=provider.name), patch(
+                "urllib.request.urlopen", side_effect=open_request
+            ):
+                await asyncio.wait_for(
+                    _collect(registry.stream(provider, messages, 100, None)), timeout=2
+                )
+                payload = captured[0]
+                if provider.name == "anthropic":
+                    system = payload["system"]
+                    self.assertFalse(
+                        any(item["role"] == "system" for item in payload["messages"])
+                    )
+                else:
+                    system_messages = [
+                        item for item in payload["messages"] if item["role"] == "system"
+                    ]
+                    self.assertEqual(len(system_messages), 1)
+                    system = system_messages[0]["content"]
+                self.assertIn("IDENTITY: You are Kilo.", system)
+                self.assertIn("BEHAVIOR: Act with tools and finish.", system)
+                self.assertIn("REMOTE: approvals resume the same request.", system)
 
 
 if __name__ == "__main__":

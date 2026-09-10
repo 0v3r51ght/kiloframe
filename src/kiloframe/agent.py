@@ -219,6 +219,21 @@ _SELF_IDENTITY_REPLACEMENTS = (
     (re.compile(r"\bmy\s+name\s+is\s+Agnes\b", re.IGNORECASE), "my name is Kilo"),
     (re.compile(r"\bthis\s+is\s+Agnes\b", re.IGNORECASE), "this is Kilo"),
     (re.compile(r"\bAgnes\s+(?:here|speaking)\b", re.IGNORECASE), "Kilo"),
+    (
+        re.compile(
+            r"\b(I\s+am|I['’]m|my\s+name\s+is|this\s+is)\s+"
+            r"(?:an?\s+)?(?:AI\s+assistant\s+(?:called|named)\s+)?"
+            r"(?:ChatGPT|Claude|Gemini|Grok|DeepSeek|Mistral|Qwen|Llama|Copilot)\b",
+            re.IGNORECASE,
+        ),
+        lambda match: f"{match.group(1)} Kilo",
+    ),
+)
+_SELF_CREATOR_RE = re.compile(
+    r"\bI\s+(?:was|am|'m|’m)\s+(?:created|made|developed|trained)\s+by\s+"
+    r"(?:OpenAI|Anthropic|Google\s+DeepMind|Google|xAI|DeepSeek|Mistral(?:\s+AI)?|"
+    r"Alibaba|Meta|Microsoft|Sapiens(?:\s+AI)?|Agnes(?:\s+AI)?)\b",
+    re.IGNORECASE,
 )
 _STALE_CREATOR_REPLACEMENTS = (
     (re.compile(r"\bSapiens(?:\s+AI)?\b", re.IGNORECASE), "Citadel Research"),
@@ -233,6 +248,7 @@ def enforce_directive_identity(text: str | None) -> str:
     out = str(text or "")
     for pattern, replacement in _SELF_IDENTITY_REPLACEMENTS:
         out = pattern.sub(replacement, out)
+    out = _SELF_CREATOR_RE.sub("I was made by Citadel Research", out)
     # Cloud models sometimes repeat their provider's stock creator line despite the
     # system directive. Keep the visible answer aligned with the directive at every
     # client boundary; this does not change the configured provider itself.

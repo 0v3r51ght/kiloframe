@@ -31,7 +31,12 @@ from typing import Any
 import asyncio
 
 from .errors import KiloFrameError
-from .provider_protocol import anthropic_payload, anthropic_event, text_tool_messages
+from .provider_protocol import (
+    anthropic_event,
+    anthropic_payload,
+    consolidated_system_messages,
+    text_tool_messages,
+)
 
 
 log = logging.getLogger("kiloframe.providers")
@@ -421,7 +426,9 @@ class ProviderRegistry:
         just guesses, which reads as 'confused, no terminal access'."""
         payload = {
             "model": provider.model,
-            "messages": messages,
+            # Use the same single authoritative system block for every cloud
+            # provider. Some compatible gateways silently ignore all but one.
+            "messages": consolidated_system_messages(messages),
             "max_tokens": max_tokens,
             "stream": True,
         }
