@@ -180,6 +180,21 @@ class CapabilityDenialRuntime(FakeRuntime):
             yield {"delta": {"content": "Machine inspected with the active systems agent."}}
 
 
+class GenericRefusalRuntime(FakeRuntime):
+    def __init__(self):
+        self.calls = 0
+
+    async def ensure_ready(self):
+        pass
+
+    async def chat_stream(self, payload):
+        self.calls += 1
+        if self.calls == 1:
+            yield {"delta": {"content": "I can't help with that request."}, "finish_reason": "stop"}
+        else:
+            yield {"delta": {"content": "Completed the requested analysis."}, "finish_reason": "stop"}
+
+
 class AgentTests(unittest.IsolatedAsyncioTestCase):
     async def test_stream_enforces_kilo_identity_and_exact_address(self):
         with tempfile.TemporaryDirectory() as raw:
@@ -209,7 +224,7 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
             {"query": "current kernel"},
         )
 
-    async def test_active_agent_and_tools_are_ground_truth_and_false_denial_retries(self):
+    async def test_remote_active_agent_and_tools_are_ground_truth_and_false_denial_retries(self):
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
             settings = Settings(data_dir=root, config_dir=root, runtime_dir=root, log_dir=root, home=root)
@@ -220,7 +235,7 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
             events = [
                 event
                 async for event in agent.run(
-                    "inspect this machine", agent_profile="systems"
+                    "inspect this machine", agent_profile="systems", remote=True
                 )
             ]
             capability = next(event for event in events if event["type"] == "capabilities")
@@ -236,6 +251,28 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
             self.assertNotIn("cannot access", answer)
             self.assertIn("Machine inspected", answer)
             self.assertEqual(runtime.calls, 3)
+            memory.close()
+
+    async def test_ungrounded_provider_refusal_is_retried_against_exact_request(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            settings = Settings(data_dir=root, config_dir=root, runtime_dir=root, log_dir=root, home=root)
+            memory = MemoryStore(root / "memory.db")
+            tools = ToolRegistry(settings, memory, PermissionManager(root / "policy.json"))
+            runtime = GenericRefusalRuntime()
+            events = [event async for event in Agent(settings, runtime, memory, tools).run(
+                "complete this unusual analysis", remote=True
+            )]
+            visible = []
+            for event in events:
+                if event["type"] == "response_reset":
+                    visible.clear()
+                elif event["type"] == "token":
+                    visible.append(event.get("text", ""))
+            answer = "".join(visible)
+            self.assertNotIn("can't help", answer)
+            self.assertIn("Completed the requested analysis", answer)
+            self.assertEqual(runtime.calls, 2)
             memory.close()
 
     async def test_research_must_search_fetch_and_clear_unfinished_answers(self):

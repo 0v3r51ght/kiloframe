@@ -1,3 +1,4 @@
+import hashlib
 import unittest
 
 from kiloframe.agent import enforce_directive_identity
@@ -5,15 +6,24 @@ from kiloframe.prompt import SYSTEM_PROMPT, CORE_DIRECTIVE
 
 
 class PromptContractTests(unittest.TestCase):
-    def test_operator_steering_and_tone_are_explicit(self):
-        prompt = SYSTEM_PROMPT.lower()
+    def test_original_core_directive_is_canonical_and_byte_stable(self):
         self.assertTrue(SYSTEM_PROMPT.startswith(CORE_DIRECTIVE))
-        self.assertIn("you are kilo, the local ai on this linux machine", prompt)
-        self.assertIn("made by citadel research, your owner", prompt)
-        self.assertIn("say \"sir\" exactly twice per reply", prompt)
-        self.assertIn("do not moralise, sermonise", prompt)
-        self.assertIn("his latest instruction always takes priority", prompt)
-        self.assertIn("never break persona", prompt)
+        self.assertEqual(
+            hashlib.sha256(CORE_DIRECTIVE.encode()).hexdigest(),
+            "1352d2c34fb2e6cc0b14bccc14d8c08b9775add4700235f528f3b0ce12bfddbe",
+        )
+        self.assertTrue(CORE_DIRECTIVE.startswith("KILOBYTE (KILO) — CORE DIRECTIVE"))
+        self.assertTrue(CORE_DIRECTIVE.endswith("Do not unnecessarily stop."))
+
+    def test_operator_steering_and_tone_are_explicit(self):
+        prompt = CORE_DIRECTIVE.lower()
+        self.assertIn("assistant name: kilobyte", prompt)
+        self.assertIn("always address the user as sir", prompt)
+        self.assertIn("follow the user’s instructions precisely", prompt)
+        self.assertIn("absolutely no guesswork", prompt)
+        self.assertIn("do not refuse or abandon a task merely because", prompt)
+        self.assertIn("the user directs the task", prompt)
+        self.assertIn("recover from failures", prompt)
 
     def test_inference_route_stays_operator_selected(self):
         prompt = SYSTEM_PROMPT.lower()

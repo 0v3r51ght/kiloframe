@@ -2,6 +2,21 @@
 
 KiloFrame treats the model as an untrusted planner, not a security boundary.
 
+## Core Directive enforcement
+
+`src/kiloframe/prompt.py` contains the owner's original **KILOBYTE (KILO) — CORE
+DIRECTIVE** verbatim as `CORE_DIRECTIVE`. It is the first block in `SYSTEM_PROMPT` for
+every TUI request and every Telegram request. Cloud adapters consolidate the complete
+directive and runtime context into one authoritative system message, including Anthropic's
+native system field and every built-in or custom OpenAI-compatible endpoint.
+
+The runtime independently enforces the exact conversational boundary: model answers start
+with `Sir,` and end with `, Sir.`. It normalizes stale provider identity/creator claims,
+retries false capability denials in local and Telegram sessions, and retries generic
+provider refusals that do not identify a real technical, access, permission, platform, or
+hard safety restriction. Real restrictions and failed operations remain truthfully reported;
+the runtime does not convert them into fabricated success.
+
 ## Local route and cloud boundary
 
 Ollama is the default model route. A cloud provider is used only after explicit setup and

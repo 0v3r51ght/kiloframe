@@ -12,6 +12,7 @@ from kiloframe.providers import (
     ProviderRegistry,
     _model_ids,
 )
+from kiloframe.prompt import CORE_DIRECTIVE, REMOTE_SUFFIX, SYSTEM_PROMPT
 
 
 def _config(raw: str, payload: dict) -> Path:
@@ -105,7 +106,7 @@ class ProviderDirectiveMatrixTests(unittest.IsolatedAsyncioTestCase):
                 pass
 
         messages = [
-            {"role": "system", "content": "IDENTITY: You are Kilo."},
+            {"role": "system", "content": SYSTEM_PROMPT + REMOTE_SUFFIX},
             {"role": "system", "content": "BEHAVIOR: Act with tools and finish."},
             {"role": "user", "content": "Do the work."},
             {"role": "system", "content": "REMOTE: approvals resume the same request."},
@@ -149,7 +150,9 @@ class ProviderDirectiveMatrixTests(unittest.IsolatedAsyncioTestCase):
                     ]
                     self.assertEqual(len(system_messages), 1)
                     system = system_messages[0]["content"]
-                self.assertIn("IDENTITY: You are Kilo.", system)
+                self.assertTrue(system.startswith(CORE_DIRECTIVE))
+                self.assertIn("KILOBYTE (KILO) — CORE DIRECTIVE", system)
+                self.assertIn("This request came from Sir's allow-listed Telegram chat", system)
                 self.assertIn("BEHAVIOR: Act with tools and finish.", system)
                 self.assertIn("REMOTE: approvals resume the same request.", system)
 

@@ -92,6 +92,12 @@ _FALSE_CAPABILITY_DENIAL_RE = re.compile(
     r")\s+(?:the\s+)?(?:tools?|agents?|machine|system|terminal|files?)\b",
     re.IGNORECASE,
 )
+_UNWARRANTED_REFUSAL_RE = re.compile(
+    r"\b(?:I\s+(?:cannot|can't|won't|will\s+not)\s+(?:help|assist|comply|do|perform|"
+    r"complete|fulfil|fulfill)|I(?:'m|\s+am)\s+(?:not\s+able|unable|not\s+comfortable)\s+"
+    r"to\s+(?:help|assist|comply|do|perform|complete|fulfil|fulfill)|I\s+must\s+refuse)\b",
+    re.IGNORECASE,
+)
 
 
 def _inline_argument(raw: str) -> Any:
@@ -198,6 +204,16 @@ def _looks_like_punt(content: str | None) -> bool:
 
 def _looks_like_false_capability_denial(content: str | None) -> bool:
     return bool(content and _FALSE_CAPABILITY_DENIAL_RE.search(content))
+
+
+def _looks_like_unwarranted_refusal(content: str | None) -> bool:
+    """Catch provider boilerplate that refuses before attempting the requested work.
+
+    Actual tool, permission, access, and platform failures are tracked separately and
+    reported truthfully. This catches an ungrounded model refusal, then gives the model
+    the user's exact request and active capability contract again.
+    """
+    return bool(content and _UNWARRANTED_REFUSAL_RE.search(content))
 
 
 # Address normalisation. The model is told to open and close by addressing Sir, and the
@@ -508,6 +524,7 @@ class Agent:
         # real answer without creating an unbounded loop.
         follow_through_nudges = 0
         capability_nudges = 0
+        refusal_nudges = 0
         # Research is an evidence-bearing task, not a prose style. The framework therefore
         # refuses to accept a research-profile answer until this turn has actually searched
         # and opened a source successfully. This catches models that ignore the tool schema,
@@ -785,11 +802,7 @@ class Agent:
                         self.memory.add_message(session_id, "assistant", failure)
                         yield {"type": "done", "session_id": session_id, "research_failed": True}
                         return
-                if (
-                    not remote
-                    and tool_schemas
-                    and _looks_like_false_capability_denial(content)
-                ):
+                if tool_schemas and _looks_like_false_capability_denial(content):
                     if capability_nudges < 3:
                         capability_nudges += 1
                         messages.append(
@@ -820,6 +833,41 @@ class Agent:
                     )
                     yield {"type": "token", "text": failure}
                     self.memory.add_message(session_id, "assistant", failure)
+                    yield {"type": "done", "session_id": session_id, "task_failed": True}
+                    return
+                if _looks_like_unwarranted_refusal(content):
+                    if refusal_nudges < 3:
+                        refusal_nudges += 1
+                        messages.append(
+                            {
+                                "role": "system",
+                                "content": (
+                                    "That was an ungrounded refusal. Re-read Sir's exact request "
+                                    "and the full Core Directive. Do not guess a different intent, "
+                                    "add an unrequested objective, or refuse because the task is "
+                                    "unusual or difficult. Use the declared tools when needed and "
+                                    "complete the original request. If a real tool, permission, "
+                                    "access, platform, or hard safety restriction actually blocks "
+                                    "one step, state only that precise limitation and continue every "
+                                    "remaining possible part."
+                                ),
+                            }
+                        )
+                        if emitted_this_step:
+                            yield {"type": "response_reset"}
+                            emitted_this_step = False
+                            sir_started = False
+                        yield {"type": "thinking"}
+                        continue
+                    if emitted_this_step:
+                        yield {"type": "response_reset"}
+                    failure = (
+                        "Sir, the selected model repeatedly refused without establishing "
+                        "a real technical, access, permission, platform, or safety restriction. "
+                        "The task remains incomplete; select another model and retry, Sir."
+                    )
+                    self.memory.add_message(session_id, "assistant", failure)
+                    yield {"type": "token", "text": failure}
                     yield {"type": "done", "session_id": session_id, "task_failed": True}
                     return
                 # The model stopped without calling a tool. If it only announced an action

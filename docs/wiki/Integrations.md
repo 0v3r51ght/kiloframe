@@ -125,3 +125,8 @@ block; this prevents compatible gateways from silently applying only one of seve
 messages. The bridge also normalizes the final combined stream, correcting stale provider
 identity or creator claims and guaranteeing the visible form `Sir, ... , Sir.`. Progress,
 status, help, and approval cards are operational UI messages.
+
+The canonical first block is the owner's full original **KILOBYTE (KILO) — CORE
+DIRECTIVE**, shared unchanged by the TUI and Telegram. False “I cannot access tools” claims
+and generic refusals without an established real limitation are rejected and retried on
+both interfaces; the remote retry retains Telegram's normal tool filtering and approvals.
