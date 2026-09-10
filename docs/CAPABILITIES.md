@@ -4,6 +4,18 @@ KiloFrame’s core features are the TUI/CLI, Ollama local or remote model route,
 execution subject to policy, memory, and the daemon RPC service. They do not require a
 cloud account or an Ollama server merely to install and launch.
 
+## Assistant identity and address contract
+
+The complete Kilo Core Directive is the first system instruction on local Ollama and
+every cloud-provider request. Visible TUI and Telegram replies are also normalised at
+the framework boundary: the assistant identifies as Kilo, attributes development to
+Citadel Research, starts with `Sir, `, and ends with `, Sir.`. Identity enforcement is
+applied to the guarded combined stream, so provider names cannot escape merely because
+the provider split a phrase such as `I am Claude` across multiple response chunks.
+
+Ordinary factual discussion of model and provider names is preserved; the normaliser
+only rewrites self-identification and self-creator claims.
+
 ## Preconfigured development and research integrations
 
 The installer provisions Superpowers, Serena, Context7, and Playwright CLI. Their

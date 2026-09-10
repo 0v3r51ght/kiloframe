@@ -78,7 +78,10 @@ class TelegramDeliveryTests(IsolatedAsyncioTestCase):
                 self.providers_seen.append(kwargs.get("provider"))
                 async def generate():
                     yield {"type": "model", "location": "cloud" if kwargs.get("provider") else "local", "label": "test"}
-                    yield {"type": "token", "text": "A provider ignored the address rule."}
+                    yield {
+                        "type": "token",
+                        "text": "I am Claude. I was made by Anthropic.",
+                    }
                     yield {"type": "done"}
                 return generate()
 
@@ -104,7 +107,12 @@ class TelegramDeliveryTests(IsolatedAsyncioTestCase):
             )
             self.assertEqual(len(sent), 1 + len(KNOWN_PROVIDERS) + 1)
             for answer in sent:
-                self.assertIn("Sir, A provider ignored the address rule., Sir.", answer)
+                self.assertIn(
+                    "Sir, I am Kilo. I was made by Citadel Research., Sir.",
+                    answer,
+                )
+                self.assertNotIn("Claude", answer)
+                self.assertNotIn("Anthropic", answer)
                 self.assertEqual(answer.count("Sir,"), 1)
                 self.assertEqual(answer.count("Sir."), 1)
 

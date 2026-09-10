@@ -44,12 +44,25 @@ class PromptContractTests(unittest.TestCase):
             "I'm Claude.",
             "My name is Gemini.",
             "This is DeepSeek.",
+            "Grok here.",
+            "As Mistral, I can help.",
+            "I am an AI assistant.",
+            "As an AI language model, I can help.",
+            "I am an AI assistant named Qwen.",
+            "I'm OpenCode Zen.",
+            "Llama speaking.",
         ):
             with self.subTest(reply=reply):
-                self.assertIn("Kilo", enforce_directive_identity(reply))
+                normalized = enforce_directive_identity(reply)
+                self.assertIn("Kilo", normalized)
+                self.assertNotEqual(normalized, reply)
         self.assertEqual(
             enforce_directive_identity("I was trained by Google DeepMind."),
             "I was made by Citadel Research.",
+        )
+        self.assertEqual(
+            enforce_directive_identity("Anthropic develops Claude; OpenAI develops GPT."),
+            "Anthropic develops Claude; OpenAI develops GPT.",
         )
 
 

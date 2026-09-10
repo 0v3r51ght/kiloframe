@@ -51,6 +51,20 @@ class IdentityRuntime(FakeRuntime):
         yield {"delta": {"content": "Sir, I am Agnes, Sir."}}
 
 
+class SplitIdentityRuntime(FakeRuntime):
+    async def ensure_ready(self):
+        pass
+
+    async def chat_stream(self, payload):
+        for token in (
+            "Sir, I am ",
+            "Claude",
+            ", an AI assistant. I was trained ",
+            "by Anthropic, Sir.",
+        ):
+            yield {"delta": {"content": token}}
+
+
 class DuplicateToolRuntime(FakeRuntime):
     def __init__(self):
         self.payloads = []
@@ -208,6 +222,36 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
             ]
             answer = "".join(event.get("text", "") for event in events if event["type"] == "token")
             self.assertEqual(answer, "Sir, I am Kilo, Sir.")
+
+    async def test_stream_enforces_identity_split_across_provider_chunks(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            settings = Settings(
+                data_dir=root,
+                config_dir=root,
+                runtime_dir=root,
+                log_dir=root,
+                home=root,
+            )
+            memory = MemoryStore(root / "memory.db")
+            tools = ToolRegistry(
+                settings, memory, PermissionManager(root / "policy.json")
+            )
+            events = [
+                event
+                async for event in Agent(
+                    settings, SplitIdentityRuntime(), memory, tools
+                ).run("who are you")
+            ]
+            answer = "".join(
+                event.get("text", "") for event in events if event["type"] == "token"
+            )
+            self.assertEqual(
+                answer,
+                "Sir, I am Kilo, an AI assistant. I was made by Citadel Research, Sir.",
+            )
+            self.assertNotIn("Claude", answer)
+            self.assertNotIn("Anthropic", answer)
 
     def test_inline_json_tool_envelope_is_recovered(self):
         raw = (

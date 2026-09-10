@@ -229,20 +229,56 @@ _SELF_NAME_TAIL_RE = re.compile(
     r"\b(?:i\s+am|i['’]m|my\s+name\s+is|this\s+is)\s+kilo\s*[,.;!?]*\s*$",
     re.IGNORECASE,
 )
+_FOREIGN_ASSISTANT_NAME = (
+    r"(?:Agnes|ChatGPT|GPT(?:-?\d+(?:\.\d+)?)?|Claude|Gemini|Grok|Groq|DeepSeek|"
+    r"OpenAI|Anthropic|xAI|Mistral|Mixtral|Qwen|Llama|Copilot|Kimi|Moonshot|"
+    r"Command(?:\s+[AR])?|Cohere|Ollama|ModelScope|GLHF|DeepInfra|"
+    r"Perplexity|Sonar|Nova|Nemotron|Z[.-]?AI|GLM(?:-?\d+(?:\.\d+)?)?|LLM7|"
+    r"OpenCode(?:\s+Zen)?|OpenRouter|Hugging\s*Face|Meta\s+AI|SambaNova|Cerebras|"
+    r"Fireworks(?:\s+AI)?|NVIDIA(?:\s+NIM)?|Venice|Together(?:\s+AI)?|Hyperbolic|"
+    r"Nebius|Scaleway|Cloudflare)"
+)
+_IDENTITY_DESCRIPTOR = (
+    r"(?:(?:an?|the)\s+)?"
+    r"(?:(?:(?:AI|virtual|digital)\s+)?(?:assistant|agent|language\s+model|model)"
+    r"\s+(?:called|named)\s+)?"
+)
 _SELF_IDENTITY_REPLACEMENTS = (
-    (re.compile(r"\bI\s+am\s+Agnes\b", re.IGNORECASE), "I am Kilo"),
-    (re.compile(r"\bI['’]m\s+Agnes\b", re.IGNORECASE), "I'm Kilo"),
-    (re.compile(r"\bmy\s+name\s+is\s+Agnes\b", re.IGNORECASE), "my name is Kilo"),
-    (re.compile(r"\bthis\s+is\s+Agnes\b", re.IGNORECASE), "this is Kilo"),
-    (re.compile(r"\bAgnes\s+(?:here|speaking)\b", re.IGNORECASE), "Kilo"),
     (
         re.compile(
             r"\b(I\s+am|I['’]m|my\s+name\s+is|this\s+is)\s+"
-            r"(?:an?\s+)?(?:AI\s+assistant\s+(?:called|named)\s+)?"
-            r"(?:ChatGPT|Claude|Gemini|Grok|DeepSeek|Mistral|Qwen|Llama|Copilot)\b",
+            + _IDENTITY_DESCRIPTOR
+            + _FOREIGN_ASSISTANT_NAME
+            + r"\b",
             re.IGNORECASE,
         ),
         lambda match: f"{match.group(1)} Kilo",
+    ),
+    (
+        re.compile(
+            r"\b" + _FOREIGN_ASSISTANT_NAME + r"\s+(?:here|speaking)\b",
+            re.IGNORECASE,
+        ),
+        "Kilo",
+    ),
+    (
+        re.compile(r"\bAs\s+" + _FOREIGN_ASSISTANT_NAME + r"\b", re.IGNORECASE),
+        "As Kilo",
+    ),
+    (
+        re.compile(
+            r"\b(I\s+am|I['’]m)\s+(?:an?\s+)?(?:AI\s+)?"
+            r"(?:assistant|agent|language\s+model|model)\b",
+            re.IGNORECASE,
+        ),
+        lambda match: f"{match.group(1)} Kilo",
+    ),
+    (
+        re.compile(
+            r"\bAs\s+(?:an?\s+)?(?:AI\s+)?(?:assistant|agent|language\s+model|model)\b",
+            re.IGNORECASE,
+        ),
+        "As Kilo",
     ),
 )
 _SELF_CREATOR_RE = re.compile(
@@ -250,12 +286,6 @@ _SELF_CREATOR_RE = re.compile(
     r"(?:OpenAI|Anthropic|Google\s+DeepMind|Google|xAI|DeepSeek|Mistral(?:\s+AI)?|"
     r"Alibaba|Meta|Microsoft|Sapiens(?:\s+AI)?|Agnes(?:\s+AI)?)\b",
     re.IGNORECASE,
-)
-_STALE_CREATOR_REPLACEMENTS = (
-    (re.compile(r"\bSapiens(?:\s+AI)?\b", re.IGNORECASE), "Citadel Research"),
-    (re.compile(r"\bAgnes(?:\s+AI)?\b", re.IGNORECASE), "Citadel Research"),
-    (re.compile(r"\bOpenAI\b", re.IGNORECASE), "Citadel Research"),
-    (re.compile(r"\bAnthropic\b", re.IGNORECASE), "Citadel Research"),
 )
 
 
@@ -265,11 +295,6 @@ def enforce_directive_identity(text: str | None) -> str:
     for pattern, replacement in _SELF_IDENTITY_REPLACEMENTS:
         out = pattern.sub(replacement, out)
     out = _SELF_CREATOR_RE.sub("I was made by Citadel Research", out)
-    # Cloud models sometimes repeat their provider's stock creator line despite the
-    # system directive. Keep the visible answer aligned with the directive at every
-    # client boundary; this does not change the configured provider itself.
-    for pattern, replacement in _STALE_CREATOR_REPLACEMENTS:
-        out = pattern.sub(replacement, out)
     return out
 
 
@@ -610,11 +635,14 @@ class Agent:
                     delta = event.get("delta", {})
                     content = delta.get("content")
                     if content:
-                        content = enforce_directive_identity(content)
                         content_parts.append(content)
                         if inline_markup:
                             continue
                         pending_content += content
+                        # Identity phrases are commonly split across cloud-provider
+                        # chunks ("I am " + "Claude"). Normalise the guarded combined
+                        # buffer before any part of it can become visible.
+                        pending_content = enforce_directive_identity(pending_content)
                         marker = _INLINE_MARKER_RE.search(pending_content)
                         if marker:
                             # A provider has put its tool protocol in the text channel.
@@ -660,6 +688,7 @@ class Agent:
                         )
 
             if pending_content and not inline_markup:
+                pending_content = enforce_directive_identity(pending_content)
                 pending_content = _strip_leading_sir(pending_content)
                 if not sir_started and pending_content.strip():
                     sir_started = True

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Enforced the Kilo identity at the combined streaming boundary so local and cloud
+  provider names cannot leak through when a self-introduction is split across chunks;
+  expanded provider/model coverage while preserving ordinary factual references.
 - Reconciled the README and version-controlled Wiki with the current daemon, TUI, CLI,
   Ollama, cloud, Telegram, MCP, and installer behavior.
 - Documented explicit route selection, live endpoint/model state, cloud model selection,

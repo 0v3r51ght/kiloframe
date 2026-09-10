@@ -157,6 +157,12 @@ normal completed answer must begin `Sir, ` and end `, Sir.`. Verify the active r
 `/status`; use `/local_models`, `/local_ps`, `/local_load`, and `/local_unload` to inspect or
 control Ollama without switching to cloud.
 
+If a local or cloud model identifies itself by its provider/model name, verify that the
+installed version includes chunk-safe identity enforcement. KiloFrame normalises
+self-identification across split streaming chunks in the TUI and again at Telegram's
+completed-message boundary. It deliberately does not rewrite provider names used in
+ordinary factual discussion.
+
 ## Configuration damaged or invalid
 
 Back up before changing anything:
