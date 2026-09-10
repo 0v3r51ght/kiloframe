@@ -281,10 +281,24 @@ _SELF_IDENTITY_REPLACEMENTS = (
         "As Kilo",
     ),
 )
+_FOREIGN_CREATOR = (
+    r"(?:OpenAI|Anthropic|Google(?:\s+DeepMind)?|xAI|Groq|DeepSeek|Mistral(?:\s+AI)?|"
+    r"Alibaba|Meta|Microsoft|Sapiens(?:\s+AI)?|Agnes(?:\s+AI)?|OpenRouter|"
+    r"Together(?:\s+AI)?|Cohere|SambaNova|Hugging\s*Face|Cloudflare|ModelScope|"
+    r"GLHF|DeepInfra|Moonshot|NVIDIA|Venice|Scaleway|Cerebras|Fireworks(?:\s+AI)?|"
+    r"Perplexity|Nebius|Hyperbolic|LLM7|OpenCode(?:\s+Zen)?)"
+)
 _SELF_CREATOR_RE = re.compile(
-    r"\bI\s+(?:was|am|'m|’m)\s+(?:created|made|developed|trained)\s+by\s+"
-    r"(?:OpenAI|Anthropic|Google\s+DeepMind|Google|xAI|DeepSeek|Mistral(?:\s+AI)?|"
-    r"Alibaba|Meta|Microsoft|Sapiens(?:\s+AI)?|Agnes(?:\s+AI)?)\b",
+    r"\bI\s+(?:was|am|'m|’m)\s+(?:created|made|built|developed|trained)\s+by\s+"
+    + _FOREIGN_CREATOR
+    + r"\b",
+    re.IGNORECASE,
+)
+_KILO_CREATOR_RE = re.compile(
+    r"\b(I\s+am|I['’]m)\s+Kilo\s*,?\s+"
+    r"(?:created|made|built|developed|trained)\s+by\s+"
+    + _FOREIGN_CREATOR
+    + r"\b",
     re.IGNORECASE,
 )
 
@@ -295,6 +309,10 @@ def enforce_directive_identity(text: str | None) -> str:
     for pattern, replacement in _SELF_IDENTITY_REPLACEMENTS:
         out = pattern.sub(replacement, out)
     out = _SELF_CREATOR_RE.sub("I was made by Citadel Research", out)
+    out = _KILO_CREATOR_RE.sub(
+        lambda match: f"{match.group(1)} Kilo, made by Citadel Research",
+        out,
+    )
     return out
 
 

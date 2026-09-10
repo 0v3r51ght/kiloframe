@@ -61,6 +61,25 @@ class PromptContractTests(unittest.TestCase):
             "I was made by Citadel Research.",
         )
         self.assertEqual(
+            enforce_directive_identity("I am Claude, developed by Anthropic."),
+            "I am Kilo, made by Citadel Research.",
+        )
+        for creator in (
+            "Groq",
+            "OpenRouter",
+            "Cerebras",
+            "Fireworks AI",
+            "Hugging Face",
+            "ModelScope",
+            "NVIDIA",
+            "Scaleway",
+        ):
+            with self.subTest(creator=creator):
+                self.assertEqual(
+                    enforce_directive_identity(f"I was built by {creator}."),
+                    "I was made by Citadel Research.",
+                )
+        self.assertEqual(
             enforce_directive_identity("Anthropic develops Claude; OpenAI develops GPT."),
             "Anthropic develops Claude; OpenAI develops GPT.",
         )
